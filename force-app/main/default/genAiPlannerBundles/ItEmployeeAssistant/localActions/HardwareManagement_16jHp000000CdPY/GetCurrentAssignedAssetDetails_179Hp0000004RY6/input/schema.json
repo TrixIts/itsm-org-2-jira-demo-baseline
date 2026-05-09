@@ -1,0 +1,14 @@
+{
+  "required" : [ ],
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "userId" : {
+      "title" : "User ID",
+      "description" : "the user ID must be identified by the session's running user id",
+      "lightning:type" : "lightning__textType",
+      "copilotAction:isUserInput" : false
+    }
+  },
+  "lightning:type" : "lightning__objectType",
+  "lightning:textIndexed" : true
+}

@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <actionCalls>
+        <name>Request_a_Corporate_Phone</name>
+        <label>Request a Corporate Phone</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <actionName>Request a Corporate Phone-01tHp00000DnnfSIAR</actionName>
+        <actionType>createSvcRequest</actionType>
+        <connector>
+            <targetReference>ReqCorpPhone1</targetReference>
+        </connector>
+        <flowTransactionModel>CurrentTransaction</flowTransactionModel>
+        <inputParameters>
+            <name>Phone_Model</name>
+            <value>
+                <elementReference>ModelNum</elementReference>
+            </value>
+        </inputParameters>
+        <nameSegment>Request a Corporate Phone-01tHp00000DnnfSIAR</nameSegment>
+        <offset>0</offset>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </actionCalls>
+    <apiVersion>65.0</apiVersion>
+    <areMetricsLoggedToDataCloud>false</areMetricsLoggedToDataCloud>
+    <choices>
+        <name>Google_Pixel_9</name>
+        <choiceText>Google Pixel 9</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>Google Pixel 9</stringValue>
+        </value>
+    </choices>
+    <choices>
+        <name>iPhone_15</name>
+        <choiceText>iPhone 15</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>iPhone 15</stringValue>
+        </value>
+    </choices>
+    <choices>
+        <name>Samsung_Galaxy_s24</name>
+        <choiceText>Samsung Galaxy s24</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>Samsung Galaxy s24</stringValue>
+        </value>
+    </choices>
+    <customProperties>
+        <name>ScreenProgressIndicator</name>
+        <value>
+            <stringValue>{&quot;location&quot;:&quot;top&quot;,&quot;type&quot;:&quot;simple&quot;}</stringValue>
+        </value>
+    </customProperties>
+    <environments>Default</environments>
+    <interviewLabel>Request a corporate phone {!$Flow.CurrentDateTime}</interviewLabel>
+    <label>Request a corporate phone</label>
+    <processMetadataValues>
+        <name>BuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>CanvasMode</name>
+        <value>
+            <stringValue>AUTO_LAYOUT_CANVAS</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>OriginBuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processType>Flow</processType>
+    <screens>
+        <name>phone_Model</name>
+        <label>Model</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <allowBack>false</allowBack>
+        <allowFinish>true</allowFinish>
+        <allowPause>false</allowPause>
+        <connector>
+            <targetReference>Request_a_Corporate_Phone</targetReference>
+        </connector>
+        <fields>
+            <name>info</name>
+            <fieldText>&lt;p&gt;&lt;strong style=&quot;font-size: 16px;&quot;&gt;Request a Corporate Phone&lt;/strong&gt;&lt;/p&gt;</fieldText>
+            <fieldType>DisplayText</fieldType>
+            <styleProperties>
+                <verticalAlignment>
+                    <stringValue>top</stringValue>
+                </verticalAlignment>
+                <width>
+                    <stringValue>12</stringValue>
+                </width>
+            </styleProperties>
+        </fields>
+        <fields>
+            <name>ModelNum</name>
+            <choiceReferences>iPhone_15</choiceReferences>
+            <choiceReferences>Google_Pixel_9</choiceReferences>
+            <choiceReferences>Samsung_Galaxy_s24</choiceReferences>
+            <dataType>String</dataType>
+            <fieldText>Model Type</fieldText>
+            <fieldType>DropdownBox</fieldType>
+            <inputsOnNextNavToAssocScrn>UseStoredValues</inputsOnNextNavToAssocScrn>
+            <isRequired>false</isRequired>
+            <styleProperties>
+                <verticalAlignment>
+                    <stringValue>top</stringValue>
+                </verticalAlignment>
+                <width>
+                    <stringValue>12</stringValue>
+                </width>
+            </styleProperties>
+        </fields>
+        <nextOrFinishButtonLabel>Next</nextOrFinishButtonLabel>
+        <showFooter>true</showFooter>
+        <showHeader>false</showHeader>
+    </screens>
+    <screens>
+        <name>ReqCorpPhone1</name>
+        <label>ReqCorpPhone1</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <allowBack>false</allowBack>
+        <allowFinish>true</allowFinish>
+        <allowPause>false</allowPause>
+        <fields>
+            <name>ReqCorpPhone2</name>
+            <fieldText>&lt;p&gt;&lt;span style=&quot;background-color: rgb(255, 255, 255);&quot;&gt;Thank you for placing a request. Your request ID is SRVC{!Request_a_Corporate_Phone.svcRequestCreationResult.serviceRequestDetails.anchorEntityNumber}. Our team will get back to you shortly.&lt;/span&gt;&lt;/p&gt;</fieldText>
+            <fieldType>DisplayText</fieldType>
+            <styleProperties>
+                <verticalAlignment>
+                    <stringValue>top</stringValue>
+                </verticalAlignment>
+                <width>
+                    <stringValue>12</stringValue>
+                </width>
+            </styleProperties>
+        </fields>
+        <showFooter>true</showFooter>
+        <showHeader>true</showHeader>
+    </screens>
+    <start>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <connector>
+            <targetReference>phone_Model</targetReference>
+        </connector>
+    </start>
+    <status>Active</status>
+</Flow>

@@ -1,0 +1,19 @@
+{
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "serviceCtlgItemsList" : {
+      "title" : "Service Catalog Items List",
+      "description" : "A list of eligible service catalog items found based on the user's request.",
+      "maxItems" : 3,
+      "items" : {
+        "lightning:type" : "@apexClassType/svc_emp_intelligence__GetEligSvcCtlgItemsApex"
+      },
+      "lightning:type" : "lightning__listType",
+      "lightning:isPII" : false,
+      "copilotAction:isDisplayable" : false,
+      "copilotAction:isUsedByPlanner" : true
+    }
+  },
+  "lightning:type" : "lightning__objectType",
+  "lightning:textIndexed" : true
+}

@@ -1,0 +1,19 @@
+{
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "svcCatalogItmAttributes" : {
+      "title" : "Service Catalog Item Attributes",
+      "description" : "A list of the attributes for the specified service catalog item.",
+      "maxItems" : 20,
+      "items" : {
+        "lightning:type" : "@apexClassType/svc_emp_intelligence__ServiceCatalogItemAttributeApex"
+      },
+      "lightning:type" : "lightning__listType",
+      "lightning:isPII" : false,
+      "copilotAction:isDisplayable" : false,
+      "copilotAction:isUsedByPlanner" : true
+    }
+  },
+  "lightning:type" : "lightning__objectType",
+  "lightning:textIndexed" : true
+}

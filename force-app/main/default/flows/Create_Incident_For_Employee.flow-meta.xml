@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <actionCalls>
+        <name>Create_Incident</name>
+        <label>Create Incident</label>
+        <locationX>176</locationX>
+        <locationY>134</locationY>
+        <actionName>VoiceAgentIncidentCreationInvocable</actionName>
+        <actionType>apex</actionType>
+        <connector>
+            <targetReference>Set_Incident_Number</targetReference>
+        </connector>
+        <flowTransactionModel>CurrentTransaction</flowTransactionModel>
+        <inputParameters>
+            <name>chatContext</name>
+            <value>
+                <elementReference>chatContext</elementReference>
+            </value>
+        </inputParameters>
+        <nameSegment>VoiceAgentIncidentCreationInvocable</nameSegment>
+        <offset>0</offset>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </actionCalls>
+    <areMetricsLoggedToDataCloud>false</areMetricsLoggedToDataCloud>
+    <description>Creates an Incident for an employee based on chat context and returns the Incident Number. Called by the IT Service Employee Agent.</description>
+    <interviewLabel>Create Incident For Employee {!$Flow.CurrentDateTime}</interviewLabel>
+    <label>Create Incident For Employee</label>
+    <processMetadataValues>
+        <name>BuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processType>AutoLaunchedFlow</processType>
+    <assignments>
+        <name>Set_Incident_Number</name>
+        <label>Set Incident Number</label>
+        <locationX>176</locationX>
+        <locationY>254</locationY>
+        <assignmentItems>
+            <assignToReference>IncidentNumber</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>Create_Incident.IncidentNumber</elementReference>
+            </value>
+        </assignmentItems>
+    </assignments>
+    <start>
+        <locationX>50</locationX>
+        <locationY>0</locationY>
+        <connector>
+            <targetReference>Create_Incident</targetReference>
+        </connector>
+    </start>
+    <status>Active</status>
+    <variables>
+        <name>chatContext</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>true</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>IncidentNumber</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>true</isOutput>
+    </variables>
+</Flow>

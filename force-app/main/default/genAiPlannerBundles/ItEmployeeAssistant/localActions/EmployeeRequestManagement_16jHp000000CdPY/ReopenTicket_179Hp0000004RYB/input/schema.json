@@ -1,0 +1,15 @@
+{
+  "required" : [ "recordId" ],
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "recordId" : {
+      "title" : "Record ID",
+      "description" : "The ID of a record (ticket) that the user wants to reopen.",
+      "lightning:type" : "lightning__recordIdType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    }
+  },
+  "lightning:type" : "lightning__objectType",
+  "lightning:textIndexed" : true
+}

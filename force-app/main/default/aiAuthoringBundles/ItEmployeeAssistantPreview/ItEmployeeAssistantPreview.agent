@@ -1,0 +1,573 @@
+config:
+  developer_name: "ItEmployeeAssistantPreview"
+  agent_label: "IT Employee Assistant Preview"
+  agent_description: "Service-agent preview wrapper for the IT Employee Assistant Agent Script migration."
+  agent_type: "AgentforceServiceAgent"
+  default_agent_user: "itemployeeassistant.agent.20260416234831@00dhp00000kpguemax.example.com"
+
+variables:
+  current_domain: mutable string = ""
+    description: "The active IT domain chosen by the router."
+  current_topic_api_name: mutable string = ""
+    description: "Legacy Builder topic API name passed to managed service catalog actions."
+  current_scope_hint: mutable string = ""
+    description: "Short scope reminder for the active domain."
+  last_knowledge_summary: mutable string = ""
+    description: "Most recent grounded knowledge summary returned for the current domain issue."
+  last_incident_number: mutable string = ""
+    description: "Most recent incident number created for the employee."
+  launch_card_url: mutable string = ""
+    description: "Most recent launch card URL returned for a complex catalog item."
+  launch_card_name: mutable string = ""
+    description: "Display name for the most recent launch card."
+  last_ticket_search_results: mutable string = ""
+    description: "Latest relevant ticket search results returned by managed ticket search."
+  last_ticket_summary: mutable string = ""
+    description: "Latest ticket summary returned by the ticket summarization prompt."
+  last_ticket_action_result: mutable string = ""
+    description: "Latest reopen or add-comment result for an existing ticket."
+  policy_answer: mutable string = ""
+    description: "Latest company-policy answer."
+  pending_comment_text: mutable string = ""
+    description: "Exact comment text the employee explicitly approved for a ticket update."
+  reopen_confirmed: mutable boolean = False
+    description: "Whether the employee explicitly confirmed a reopen request."
+  comment_confirmed: mutable boolean = False
+    description: "Whether the employee explicitly confirmed the exact comment text and target ticket."
+
+system:
+  messages:
+    welcome: "Hello! I can help with IT issues, service requests, existing IT tickets, company policy questions, and IT escalation."
+    error: "Sorry, something went wrong while I was working on that. Please try again or ask me to guide you to the IT help desk."
+  instructions: "You are the IT Employee Assistant for internal employees. Keep responses concise, accurate, and action-oriented. Use knowledge before creating new tickets when the employee is reporting a problem. Never create an incident without explicit employee confirmation. Never reopen a ticket or add a comment without explicit employee confirmation. If a request is about an existing incident, service request, or case, handle it in ticket follow-up instead of creating a new issue."
+
+language:
+  default_locale: "en_US"
+  additional_locales: ""
+  all_additional_locales: False
+
+start_agent topic_router:
+  description: "Route the employee to the best matching IT assistance topic."
+  reasoning:
+    instructions: |
+      Route the employee to the best matching topic.
+      Prefer ticket follow-up when the employee is asking about an existing incident, case, or service request.
+      Prefer policy query when the employee is asking about company policy, benefits, leave, reimbursements, entitlements, or guidelines.
+      Prefer escalation when the employee explicitly asks for human help or the request clearly needs human intervention.
+      Use the domain topics for new IT issues, access requests, infrastructure requests, hardware questions, and operational help.
+    actions:
+      go_to_software_domain: @utils.transition to @topic.software_domain
+        description: "Route software issues, software installs, app access, licenses, and business application troubleshooting."
+      go_to_cloud_infrastructure_domain: @utils.transition to @topic.cloud_infrastructure_domain
+        description: "Route cloud, infrastructure, server, database, platform, and backend operations questions."
+      go_to_facilities_domain: @utils.transition to @topic.facilities_domain
+        description: "Route facilities, office access, seating, room, badge, and office-support requests."
+      go_to_it_security_domain: @utils.transition to @topic.it_security_domain
+        description: "Route phishing, malware, device loss, firewall, certificate, and security incident questions."
+      go_to_collaboration_domain: @utils.transition to @topic.collaboration_domain
+        description: "Route email, chat, conferencing, document sharing, and collaboration-platform requests."
+      go_to_network_domain: @utils.transition to @topic.network_domain
+        description: "Route Wi-Fi, VPN, internet, identity, MFA, SSO, Okta, and directory-access issues."
+      go_to_hardware_domain: @utils.transition to @topic.hardware_domain
+        description: "Route laptop, monitor, keyboard, printer, asset, and peripheral questions."
+      go_to_employee_lifecycle_domain: @utils.transition to @topic.employee_lifecycle_domain
+        description: "Route onboarding, offboarding, transfer, promotion, and access-change lifecycle requests."
+      go_to_compliance_domain: @utils.transition to @topic.compliance_domain
+        description: "Route compliance, governance, privacy, reporting, and required-training support."
+      go_to_ticket_followup: @utils.transition to @topic.ticket_followup
+        description: "Route status checks, ticket summaries, reopen requests, and ticket comments."
+      go_to_policy_query: @utils.transition to @topic.policy_query
+        description: "Route company policy, benefits, leave, travel, and reimbursement questions."
+      go_to_escalation: @utils.transition to @topic.escalation
+        description: "Route explicit requests for a human support path."
+      go_to_off_topic: @utils.transition to @topic.off_topic
+        description: "Route greetings, unsupported requests, or unrelated requests."
+      go_to_ambiguous_question: @utils.transition to @topic.ambiguous_question
+        description: "Route unclear requests that need clarification before work can continue."
+
+topic software_domain:
+  description: "Select the software-management domain and hand off to shared IT intake."
+  reasoning:
+    instructions: ->
+      set @variables.current_domain = "software"
+      set @variables.current_topic_api_name = "SoftwareManagement"
+      set @variables.current_scope_hint = "Software applications, access, licenses, email and collaboration app access, software installation and removal, and software break-fix."
+      transition to @topic.shared_service_request_intake
+
+topic cloud_infrastructure_domain:
+  description: "Select the cloud-and-infrastructure domain and hand off to shared IT intake."
+  reasoning:
+    instructions: ->
+      set @variables.current_domain = "cloud and infrastructure"
+      set @variables.current_topic_api_name = "CloudAndInfrastructureManagement"
+      set @variables.current_scope_hint = "Cloud services, servers, backend platforms, databases, infrastructure operations, and environment support."
+      transition to @topic.shared_service_request_intake
+
+topic facilities_domain:
+  description: "Select the facilities-management domain and hand off to shared IT intake."
+  reasoning:
+    instructions: ->
+      set @variables.current_domain = "facilities"
+      set @variables.current_topic_api_name = "FacilitiesManagement"
+      set @variables.current_scope_hint = "Office facilities, seating, badges, access, rooms, moves, office supplies, and workplace environment support."
+      transition to @topic.shared_service_request_intake
+
+topic it_security_domain:
+  description: "Select the IT-security domain and hand off to shared IT intake."
+  reasoning:
+    instructions: ->
+      set @variables.current_domain = "it security"
+      set @variables.current_topic_api_name = "ITSecurityManagement"
+      set @variables.current_scope_hint = "Security incidents, phishing, malware, device loss, firewall changes, certificate requests, and vendor security reviews."
+      transition to @topic.shared_service_request_intake
+
+topic collaboration_domain:
+  description: "Select the collaboration-management domain and hand off to shared IT intake."
+  reasoning:
+    instructions: ->
+      set @variables.current_domain = "collaboration"
+      set @variables.current_topic_api_name = "CollaborationManagement"
+      set @variables.current_scope_hint = "Email, calendars, chat, Slack, Teams, video meetings, shared drives, and collaboration workspace permissions."
+      transition to @topic.shared_service_request_intake
+
+topic network_domain:
+  description: "Select the network-management domain and hand off to shared IT intake."
+  reasoning:
+    instructions: ->
+      set @variables.current_domain = "network"
+      set @variables.current_topic_api_name = "NetworkManagement"
+      set @variables.current_scope_hint = "Wi-Fi, VPN, internet access, proxy, remote connectivity, MFA, SSO, Okta, and directory access."
+      transition to @topic.shared_service_request_intake
+
+topic hardware_domain:
+  description: "Select the hardware-management domain and hand off to shared IT intake."
+  reasoning:
+    instructions: ->
+      set @variables.current_domain = "hardware"
+      set @variables.current_topic_api_name = "HardwareManagement"
+      set @variables.current_scope_hint = "Laptops, desktops, monitors, keyboards, printers, peripherals, device setup, hardware incidents, and assigned assets."
+      transition to @topic.shared_service_request_intake
+
+topic employee_lifecycle_domain:
+  description: "Select the employee-lifecycle domain and hand off to shared IT intake."
+  reasoning:
+    instructions: ->
+      set @variables.current_domain = "employee lifecycle"
+      set @variables.current_topic_api_name = "EmployeeLifecycleManagement"
+      set @variables.current_scope_hint = "Onboarding, offboarding, promotions, transfers, manager changes, resignations, and related access-change requests."
+      transition to @topic.shared_service_request_intake
+
+topic compliance_domain:
+  description: "Select the compliance-management domain and hand off to shared IT intake."
+  reasoning:
+    instructions: ->
+      set @variables.current_domain = "compliance"
+      set @variables.current_topic_api_name = "ComplianceManagement"
+      set @variables.current_scope_hint = "Compliance, privacy, policy adherence, governance, audit support, and mandatory reporting or training requests."
+      transition to @topic.shared_service_request_intake
+
+topic shared_service_request_intake:
+  description: "Shared intake for new IT issues and managed service-request workflows across all IT domains."
+  actions:
+    answer_questions_with_knowledge:
+      description: "Search managed IT knowledge and summarize grounded guidance for the employee's current issue or how-to request."
+      inputs:
+        query: string
+          description: "The employee's natural-language issue description or question."
+          is_required: True
+          is_user_input: True
+        citationsUrl: string
+          description: "Optional citations URL override for custom surfaces."
+        ragFeatureConfigId: string
+          description: "Managed RAG feature configuration for the knowledge-answer action."
+        citationsEnabled: boolean
+          description: "Whether citations should be included in the managed response."
+      outputs:
+        knowledgeSummary: string
+          description: "Grounded knowledge summary for the current request."
+          is_displayable: True
+          is_used_by_planner: True
+        citationSources: list[object]
+          description: "Citation sources returned by the managed knowledge answer action."
+          complex_data_type_name: "@apexClassType/AiCopilot__GenAiCitationInput"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "standardInvocableAction://EmployeeCopilot__AnswerQuestionsWithKnowledge"
+    get_eligible_service_catalog_items:
+      description: "Classify the current request into eligible service catalog items for the active IT domain."
+      inputs:
+        queryDescription: string
+          description: "The employee request to classify into service catalog options."
+          is_required: True
+        topicName: string
+          description: "Legacy Builder topic API name for the active domain."
+          is_required: True
+        channelType: string
+          description: "Optional channel type for managed messaging-based experiences."
+        messagingChannelId: string
+          description: "Optional messaging channel identifier used by the legacy managed action."
+      outputs:
+        serviceCtlgItemsList: list[object]
+          description: "Eligible service catalog items returned for the current request."
+          complex_data_type_name: "@apexClassType/svc_emp_intelligence__GetEligSvcCtlgItemsApex"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "standardInvocableAction://svc_emp_intelligence__GetEligibleServiceCatalogItems"
+    get_svc_catalog_attributes:
+      description: "Load required attributes for a selected service catalog item before a request is created."
+      inputs:
+        productId: id
+          description: "Service catalog item record identifier."
+          is_required: True
+      outputs:
+        svcCatalogItmAttributes: list[object]
+          description: "Service catalog attributes that must be collected for the selected item."
+          complex_data_type_name: "@apexClassType/svc_emp_intelligence__ServiceCatalogItemAttributeApex"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "standardInvocableAction://svc_emp_intelligence__GetSvcCatalogAttributes"
+    create_service_catalog_request:
+      description: "Create a managed service request after the required service catalog attributes are collected."
+      inputs:
+        productId: id
+          description: "Service catalog item record identifier."
+          is_required: True
+        sciAttributes: list[object]
+          description: "Fully populated service catalog attribute payload for the selected item."
+          complex_data_type_name: "@apexClassType/svc_emp_intelligence__ServiceCatalogItemAttributeDataApex"
+      outputs:
+        requestStatus: string
+          description: "Request-creation status."
+          is_displayable: False
+          is_used_by_planner: True
+        createdTicket: object
+          description: "Created ticket metadata when the request succeeds."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_displayable: True
+          is_used_by_planner: True
+        requiredAttributes: list[string]
+          description: "Any required attributes that were missing or invalid."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "standardInvocableAction://svc_emp_intelligence__CreateServiceCatalogRequest"
+    get_product_launch_card:
+      description: "Return the launch URL and display details for a complex service catalog item."
+      inputs:
+        productId: string
+          description: "Selected product or process identifier."
+          is_required: True
+        siteName: string
+          description: "Optional site context for launch-card generation."
+        channelType: string
+          description: "Optional channel type for launch-card generation."
+      outputs:
+        launchUrl: string
+          description: "Launch URL for the complex request."
+          is_displayable: True
+          is_used_by_planner: True
+        productName: string
+          description: "Display name of the complex service item."
+          is_displayable: True
+          is_used_by_planner: True
+        imageUrl: string
+          description: "Image associated with the product launch card."
+          is_displayable: True
+          is_used_by_planner: True
+        productDesc: string
+          description: "Description of the complex service item."
+          is_displayable: True
+          is_used_by_planner: True
+      target: "standardInvocableAction://sc_enterprise_catalog__GetProductLaunchCard"
+    create_incident_for_employee:
+      description: "Create a new employee IT incident after the employee explicitly agrees to incident creation."
+      inputs:
+        chatContext: string
+          description: "Conversation context used by the managed incident-creation action."
+          is_required: True
+      outputs:
+        IncidentNumber: string
+          description: "Identifier of the created incident."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "standardInvocableAction://svc_emp_intelligence__CreateIncidentForEmployee"
+  reasoning:
+    instructions: ->
+      if @variables.last_incident_number != "":
+        | The most recent incident created in this conversation is {!@variables.last_incident_number}. Confirm whether the employee needs anything else before creating another record.
+        set @variables.last_incident_number = ""
+
+      if @variables.launch_card_url != "":
+        | A launch card is available for {!@variables.launch_card_name}. Share the launch link and explain that the employee can finish the complex request there: {!@variables.launch_card_url}
+        set @variables.launch_card_url = ""
+        set @variables.launch_card_name = ""
+
+      if @variables.last_knowledge_summary != "":
+        | Reuse this grounded knowledge summary whenever it directly addresses the employee's follow-up: {!@variables.last_knowledge_summary}
+
+      | You are handling the {!@variables.current_domain} domain.
+      | Scope reminder: {!@variables.current_scope_hint}
+      | Start with knowledge for troubleshooting, how-to guidance, and informational questions before creating a new ticket.
+      | If knowledge resolves the issue, confirm the employee is done and do not create a new incident or request.
+      | If knowledge does not resolve the issue, use {!@actions.get_eligible_service_catalog_items} to identify whether this is a catalog-backed request.
+      | When there is one strong catalog match, confirm only the item name with the employee before collecting attribute values.
+      | For SIMPLE catalog items, use {!@actions.get_svc_catalog_attributes}, collect all required values except subject and reportedBy, and then use {!@actions.create_service_catalog_request}.
+      | For COMPLEX catalog items, use {!@actions.get_product_launch_card} and share the returned launch URL instead of manually collecting fields.
+      | Only use {!@actions.create_incident_for_employee} after the employee explicitly confirms they want an incident created.
+      | If the employee is really asking about an existing ticket, route to ticket follow-up instead of staying in new-request intake.
+      | If the employee is asking about currently assigned hardware, acknowledge that direct assigned-asset lookup is not yet wired in this first migration cut and help them with the surrounding hardware request or route them to human support.
+    actions:
+      search_knowledge: @actions.answer_questions_with_knowledge
+        description: "Search managed IT knowledge and share grounded guidance for the active domain request."
+        with query = @system_variables.user_input
+        with citationsUrl = ""
+        with ragFeatureConfigId = "AiRagFeaturePromptContent_9a1af33c_641d_445e_9713_8b619182a610"
+        with citationsEnabled = False
+        set @variables.last_knowledge_summary = @outputs.knowledgeSummary
+      search_catalog: @actions.get_eligible_service_catalog_items
+        description: "Classify the current domain request against the managed service catalog."
+        with queryDescription = @system_variables.user_input
+        with topicName = @variables.current_topic_api_name
+        with channelType = ""
+        with messagingChannelId = ""
+      load_catalog_attributes: @actions.get_svc_catalog_attributes
+        description: "Load the required attributes for the selected service catalog item after the employee confirms the item."
+        with productId = ...
+      create_service_request: @actions.create_service_catalog_request
+        description: "Create a service request after all required attributes are collected and validated."
+        with productId = ...
+        with sciAttributes = ...
+      get_launch_card: @actions.get_product_launch_card
+        description: "Open the launch-card experience for a complex catalog item."
+        with productId = ...
+        with siteName = ""
+        with channelType = ""
+        set @variables.launch_card_url = @outputs.launchUrl
+        set @variables.launch_card_name = @outputs.productName
+      create_incident: @actions.create_incident_for_employee
+        description: "Create a new employee IT incident after explicit employee confirmation."
+        with chatContext = @system_variables.user_input
+        set @variables.last_incident_number = @outputs.IncidentNumber
+      go_to_ticket_followup: @utils.transition to @topic.ticket_followup
+        description: "Move to existing ticket follow-up when the employee asks about an existing incident, case, or service request."
+      go_to_policy_query: @utils.transition to @topic.policy_query
+        description: "Move to policy query when the employee switches into company policy or benefits questions."
+      go_to_escalation: @utils.transition to @topic.escalation
+        description: "Move to escalation when the employee explicitly wants human assistance."
+      back_to_router: @utils.transition to @topic.topic_router
+        description: "Return to the main router when the conversation changes topics."
+
+topic ticket_followup:
+  description: "Handle follow-up on existing incidents, service requests, and cases."
+  actions:
+    identify_record_by_name:
+      description: "Resolve a ticket number or record name into Salesforce ticket records before follow-up actions run."
+      inputs:
+        recordName: string
+          description: "Ticket number or record name provided by the employee."
+          is_required: True
+          is_user_input: True
+        objectApiName: string
+          description: "Optional object API name if the ticket object is already known."
+      outputs:
+        searchResults: list[object]
+          description: "Matching record candidates ranked by relevance."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_displayable: True
+          is_used_by_planner: True
+      target: "standardInvocableAction://EmployeeCopilot__IdentifyRecordByName"
+    get_relevant_tickets_by_description:
+      description: "Search for the employee's relevant tickets when they describe a problem instead of naming a specific record."
+      inputs:
+        userQuery: string
+          description: "Employee description used to find matching tickets."
+          is_required: True
+          is_user_input: True
+        useCase: string
+          description: "Use case that shapes the ticket search behavior."
+          is_required: True
+      outputs:
+        relevantTickets: string
+          description: "Formatted relevant ticket results."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "flow://svc_emp_intelligence__GetRelevantTicketsByDescription"
+    summarize_ticket_for_employee:
+      description: "Summarize the current state of a selected ticket for the employee."
+      inputs:
+        "Input:recordId": string
+          description: "Record identifier of the selected ticket."
+          is_required: True
+      outputs:
+        promptResponse: string
+          description: "Prompt-generated ticket summary."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "generatePromptResponse://svc_emp_intelligence__SummarizeTicketForEmployee"
+    reopen_ticket:
+      description: "Reopen a selected ticket after the employee explicitly confirms the reopen request."
+      inputs:
+        recordId: id
+          description: "Record identifier of the ticket to reopen."
+          is_required: True
+      outputs:
+        resultSummary: string
+          description: "Result of the reopen action."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "flow://svc_emp_intelligence__ReopenTicket"
+    add_comment_to_ticket:
+      description: "Add an employee-approved comment to a selected ticket."
+      inputs:
+        recordID: id
+          description: "Record identifier of the ticket to update."
+          is_required: True
+        commentText: string
+          description: "Exact comment text approved by the employee."
+          is_required: True
+      outputs:
+        outputMessage: string
+          description: "Result of the comment action."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "flow://svc_emp_intelligence__AddCommentToTicket"
+  reasoning:
+    instructions: ->
+      if @variables.last_ticket_summary != "":
+        | Reuse this ticket summary when it directly answers the employee's follow-up: {!@variables.last_ticket_summary}
+
+      if @variables.last_ticket_action_result != "":
+        | Reuse this ticket-action result when it directly answers the employee's follow-up: {!@variables.last_ticket_action_result}
+
+      if @variables.last_ticket_search_results != "":
+        | Use these ticket search results exactly as returned when helping the employee choose the correct record: {!@variables.last_ticket_search_results}
+
+      | Handle follow-up on existing incidents, service requests, and cases.
+      | If the employee provides a ticket number or record name, use {!@actions.identify_record_by_name} before summarize, reopen, or comment actions unless a reliable record id is already available in the same turn.
+      | If the employee wants a status update, summary, reopen, or comment but does not name a specific ticket, use the matching {!@actions.get_relevant_tickets_by_description} search action first.
+      | If exactly one relevant ticket is clear from the search results, continue with that ticket instead of asking "which ticket."
+      | If multiple tickets are plausible, ask the employee to choose the ticket before using summarize, reopen, or comment actions.
+      | Before {!@actions.reopen_ticket}, explicitly confirm that the employee wants to reopen the selected ticket.
+      | Before {!@actions.add_comment_to_ticket}, explicitly confirm both the chosen ticket and the exact comment text. Never rewrite the comment without reconfirming it.
+      | If the request is actually a new issue or service request, route back to shared service intake.
+    actions:
+      identify_ticket: @actions.identify_record_by_name
+        description: "Resolve a named ticket or ticket number into a concrete ticket record."
+        with recordName = ...
+        with objectApiName = ""
+      search_tickets_for_status: @actions.get_relevant_tickets_by_description
+        description: "Search relevant tickets when the employee wants a ticket update or summary."
+        with userQuery = @system_variables.user_input
+        with useCase = "ticketStatusUpdate"
+        set @variables.last_ticket_search_results = @outputs.relevantTickets
+      search_tickets_for_reopen: @actions.get_relevant_tickets_by_description
+        description: "Search relevant tickets when the employee wants to reopen a ticket."
+        with userQuery = @system_variables.user_input
+        with useCase = "reopenTicket"
+        set @variables.last_ticket_search_results = @outputs.relevantTickets
+      search_tickets_for_comment: @actions.get_relevant_tickets_by_description
+        description: "Search relevant tickets when the employee wants to add a comment."
+        with userQuery = @system_variables.user_input
+        with useCase = "addCommentToTicket"
+        set @variables.last_ticket_search_results = @outputs.relevantTickets
+      summarize_ticket: @actions.summarize_ticket_for_employee
+        description: "Summarize a selected ticket after the correct record has been identified."
+        with "Input:recordId" = ...
+        set @variables.last_ticket_summary = @outputs.promptResponse
+      store_exact_comment_text: @utils.setVariables
+        description: "Store the exact comment text after the employee confirms the wording."
+        with pending_comment_text = ...
+      mark_comment_confirmed: @utils.setVariables
+        description: "Mark that the employee explicitly confirmed both the exact comment text and the target ticket."
+        with comment_confirmed = True
+      mark_reopen_confirmed: @utils.setVariables
+        description: "Mark that the employee explicitly confirmed reopening the selected ticket."
+        with reopen_confirmed = True
+      add_comment: @actions.add_comment_to_ticket
+        description: "Add the approved comment to the selected ticket after explicit confirmation."
+        available when @variables.comment_confirmed == True and @variables.pending_comment_text != ""
+        with recordID = ...
+        with commentText = @variables.pending_comment_text
+        set @variables.last_ticket_action_result = @outputs.outputMessage
+      reopen_selected_ticket: @actions.reopen_ticket
+        description: "Reopen the selected ticket after explicit confirmation."
+        available when @variables.reopen_confirmed == True
+        with recordId = ...
+        set @variables.last_ticket_action_result = @outputs.resultSummary
+      clear_followup_state: @utils.setVariables
+        description: "Clear stored follow-up confirmation state after the employee changes course or after a follow-up action completes."
+        with pending_comment_text = ""
+        with comment_confirmed = False
+        with reopen_confirmed = False
+      go_to_shared_intake: @utils.transition to @topic.shared_service_request_intake
+        description: "Return to shared intake when the request is for a new issue or a new service request."
+      go_to_policy_query: @utils.transition to @topic.policy_query
+        description: "Move to policy query if the employee switches to a company-policy question."
+      go_to_escalation: @utils.transition to @topic.escalation
+        description: "Move to escalation if the employee explicitly wants human help."
+      back_to_router: @utils.transition to @topic.topic_router
+        description: "Return to the main router when the conversation changes topics."
+
+topic policy_query:
+  description: "Answer employee questions about company policy, benefits, leave, reimbursements, and guidelines."
+  actions:
+    answer_policy_questions:
+      description: "Answer employee questions about company policies by using the managed policy-answer prompt."
+      inputs:
+        "Input:userQuery": string
+          description: "Employee question about company policy or benefits."
+          is_required: True
+      outputs:
+        promptResponse: string
+          description: "Policy answer returned by the managed prompt."
+          is_displayable: True
+          is_used_by_planner: True
+      target: "generatePromptResponse://svc_emp_intelligence__AnswerPolicyQuestions"
+  reasoning:
+    instructions: ->
+      if @variables.policy_answer != "":
+        | Reuse this policy answer when it directly addresses the employee's follow-up: {!@variables.policy_answer}
+
+      | Handle employee questions about company policies, benefits, leave, reimbursements, travel limits, entitlements, and internal guidelines.
+      | If the policy question is unclear, ask a clarifying question before invoking the policy-answer action.
+      | If the answer is incomplete or unclear, explain the policy in simpler language and offer to help interpret it further.
+      | If the managed policy answer does not cover the request, guide the employee toward HR or the relevant team instead of inventing an answer.
+    actions:
+      answer_policy_question: @actions.answer_policy_questions
+        description: "Answer the employee's company-policy question."
+        with "Input:userQuery" = @system_variables.user_input
+        set @variables.policy_answer = @outputs.promptResponse
+      go_to_escalation: @utils.transition to @topic.escalation
+        description: "Move to escalation when the employee needs human follow-up."
+      back_to_router: @utils.transition to @topic.topic_router
+        description: "Return to the main router when the conversation changes topics."
+
+topic escalation:
+  description: "Handle explicit requests for human assistance and guide employees to the live-help path."
+  reasoning:
+    instructions: |
+      Help the employee get human support.
+      If the employee explicitly asks for human help, guide them to the IT help desk or support channel configured by the business and offer to summarize the issue for handoff.
+      If the employee still wants the request logged instead of handoff, route them back to shared service intake or ticket follow-up, whichever best matches the request.
+    actions:
+      go_to_shared_intake: @utils.transition to @topic.shared_service_request_intake
+        description: "Return to shared intake to log a new issue or service request."
+      go_to_ticket_followup: @utils.transition to @topic.ticket_followup
+        description: "Return to ticket follow-up for an existing incident, case, or service request."
+      back_to_router: @utils.transition to @topic.topic_router
+        description: "Return to the main router."
+
+topic off_topic:
+  description: "Politely redirect unsupported or unrelated requests back to the IT employee-assistant scope."
+  reasoning:
+    instructions: |
+      Politely redirect the employee back to supported topics.
+      Only support IT issues, service requests, IT ticket follow-up, policy questions, and requests for human IT help.
+      For unrelated questions, state that you can help with IT and company-policy workflows and ask what the employee needs in that scope.
+
+topic ambiguous_question:
+  description: "Ask for clarification when the employee request is too vague to route or act on."
+  reasoning:
+    instructions: |
+      Ask the employee for one or two specific clarifying details.
+      Encourage them to focus on the single most important issue first.
+      Do not guess which ticket, policy, or request they mean when the intent is still ambiguous.

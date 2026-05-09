@@ -1,0 +1,26 @@
+{
+  "required" : [ "productId" ],
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "productId" : {
+      "title" : "Service Catalog Item ID",
+      "description" : "The ID of the service catalog item record for which to create a service request",
+      "lightning:type" : "lightning__recordIdType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    },
+    "sciAttributes" : {
+      "title" : "Service Catalog Item Attributes",
+      "description" : "A list of Service Catalog Item Attribute Data objects. This list must contain every attribute returned by GetSvcCatalogAttributes. Each object must be fully populated with all original fields (e.g., type, required, name) and must include the final user-specified input in the value field. If a user's input for a date or dateTime field is ambiguous or not definitive, strictly do not make any assumptions. You must clearly ask the user for clarification before finalizing the object. Date and Time Handling: 1. Date Fields: Format as yyyy-MM-dd. 2. DateTime Fields: Format strictly as yyyy-MM-dd'T'HH:mm:ss.SSSXXX. You must include milliseconds (e.g., .000) and the ISO Time Zone offset (e.g., Z, +05:30, or -08:00). Example: 2025-12-16T17:00:00.000Z.",
+      "maxItems" : 20,
+      "items" : {
+        "lightning:type" : "@apexClassType/svc_emp_intelligence__ServiceCatalogItemAttributeDataApex"
+      },
+      "lightning:type" : "lightning__listType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    }
+  },
+  "lightning:type" : "lightning__objectType",
+  "lightning:textIndexed" : true
+}

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ExternalServiceRegistration xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Okta connector to provide Agentforce actions</description>
+    <label>Okta Provision</label>
+    <namedCredential>Okta1Okta_Provision</namedCredential>
+    <namedCredentialReference>Okta1Okta_Provision</namedCredentialReference>
+    <registrationProvider>Okta</registrationProvider>
+    <registrationProviderType>ExternalConnector</registrationProviderType>
+    <schema>{&quot;icSerializedService&quot;:true,&quot;Service&quot;:{&quot;description&quot;:&quot;Okta connector to provide Agentforce actions&quot;,&quot;topLevelPrimitives&quot;:[],&quot;topLevelObjectDataTypes&quot;:[]}}</schema>
+    <schemaType>InterpretedConnectivity</schemaType>
+    <status>Complete</status>
+    <systemVersion>8</systemVersion>
+</ExternalServiceRegistration>

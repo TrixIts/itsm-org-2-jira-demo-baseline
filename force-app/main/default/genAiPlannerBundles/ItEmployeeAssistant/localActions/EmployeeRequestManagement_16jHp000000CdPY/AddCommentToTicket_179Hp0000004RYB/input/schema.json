@@ -1,0 +1,22 @@
+{
+  "required" : [ "recordID", "commentText" ],
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "recordID" : {
+      "title" : "RECORD ID",
+      "description" : "The ID of the record (ticket) to which the user wants to add a comment.",
+      "lightning:type" : "lightning__recordIdType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    },
+    "commentText" : {
+      "title" : "Comment Text",
+      "description" : "The comment text that the user wants to add to a record.",
+      "lightning:type" : "lightning__textType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    }
+  },
+  "lightning:type" : "lightning__objectType",
+  "lightning:textIndexed" : true
+}

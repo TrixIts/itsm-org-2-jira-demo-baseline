@@ -1,0 +1,36 @@
+{
+  "required" : [ "queryDescription", "topicName" ],
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "queryDescription" : {
+      "title" : "Query Description",
+      "description" : "The description of the user’s query that indicates the intent of the user to identify a Service Catalog Item.",
+      "lightning:type" : "lightning__textType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    },
+    "topicName" : {
+      "title" : "Topic Name",
+      "description" : "API name of the triggering topic",
+      "lightning:type" : "lightning__textType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    },
+    "channelType" : {
+      "title" : "Channel Type",
+      "description" : "The channel type from which the action is being invoked. Always pass $Context.ChannelType as value.",
+      "lightning:type" : "lightning__textType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    },
+    "messagingChannelId" : {
+      "title" : "Messaging Channel Id",
+      "description" : "The messaging channel Id from which the action is being invoked. Always pass $Context.MessagingChannelId as value.",
+      "lightning:type" : "lightning__textType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    }
+  },
+  "lightning:type" : "lightning__objectType",
+  "lightning:textIndexed" : true
+}

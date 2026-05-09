@@ -1,0 +1,338 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <actionCalls>
+        <name>CreateServiceRequestForRequestLaptopReplacement</name>
+        <label>Create Service Request for Request Laptop Replacement</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <actionName>Request Laptop Replacement-01tHp00000DpFOBIA3</actionName>
+        <actionType>createSvcRequest</actionType>
+        <connector>
+            <targetReference>ScreenConfirmationMessage</targetReference>
+        </connector>
+        <flowTransactionModel>CurrentTransaction</flowTransactionModel>
+        <inputParameters>
+            <name>ReasonForReplacement</name>
+            <value>
+                <elementReference>ReasonForReplacementLongTextArea</elementReference>
+            </value>
+        </inputParameters>
+        <inputParameters>
+            <name>OperatingSystem</name>
+            <value>
+                <elementReference>OperatingSystemPicklist</elementReference>
+            </value>
+        </inputParameters>
+        <inputParameters>
+            <name>DiskSize</name>
+            <value>
+                <elementReference>DiskSizePicklist</elementReference>
+            </value>
+        </inputParameters>
+        <inputParameters>
+            <name>RamCapacity</name>
+            <value>
+                <elementReference>RAMCapacityPicklist</elementReference>
+            </value>
+        </inputParameters>
+        <inputParameters>
+            <name>RequiredByDate</name>
+            <value>
+                <elementReference>RequiredByDate</elementReference>
+            </value>
+        </inputParameters>
+        <inputParameters>
+            <name>Subject</name>
+            <value>
+                <elementReference>ServiceProcessName</elementReference>
+            </value>
+        </inputParameters>
+        <nameSegment>Request Laptop Replacement-01tHp00000DpFOBIA3</nameSegment>
+        <offset>0</offset>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </actionCalls>
+    <apiVersion>66.0</apiVersion>
+    <areMetricsLoggedToDataCloud>false</areMetricsLoggedToDataCloud>
+    <choices>
+        <description>Stores the choice label and value for the 1 TB option for DiskSizePicklist on the ScreenCollectLaptopReplacementDetails screen.</description>
+        <name>ChoiceDisk1TB</name>
+        <choiceText>1 TB</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>1 TB</stringValue>
+        </value>
+    </choices>
+    <choices>
+        <description>Stores the choice label and value for the 2 TB option for DiskSizePicklist on the ScreenCollectLaptopReplacementDetails screen.</description>
+        <name>ChoiceDisk2TB</name>
+        <choiceText>2 TB</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>2 TB</stringValue>
+        </value>
+    </choices>
+    <choices>
+        <description>Stores the choice label and value for the 512 GB option for DiskSizePicklist on the ScreenCollectLaptopReplacementDetails screen.</description>
+        <name>ChoiceDisk512GB</name>
+        <choiceText>512 GB</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>512 GB</stringValue>
+        </value>
+    </choices>
+    <choices>
+        <description>Stores the choice label and value for the Mac option for OperatingSystemPicklist on the ScreenCollectLaptopReplacementDetails screen.</description>
+        <name>ChoiceOSMac</name>
+        <choiceText>Mac</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>Mac</stringValue>
+        </value>
+    </choices>
+    <choices>
+        <description>Stores the choice label and value for the Windows option for OperatingSystemPicklist on the ScreenCollectLaptopReplacementDetails screen.</description>
+        <name>ChoiceOSWindows</name>
+        <choiceText>Windows</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>Windows</stringValue>
+        </value>
+    </choices>
+    <choices>
+        <description>Stores the choice label and value for the 24 GB option for RAMCapacityPicklist on the ScreenCollectLaptopReplacementDetails screen.</description>
+        <name>ChoiceRAM24GB</name>
+        <choiceText>24 GB</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>24 GB</stringValue>
+        </value>
+    </choices>
+    <choices>
+        <description>Stores the choice label and value for the 36 GB option for RAMCapacityPicklist on the ScreenCollectLaptopReplacementDetails screen.</description>
+        <name>ChoiceRAM36GB</name>
+        <choiceText>36 GB</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>36 GB</stringValue>
+        </value>
+    </choices>
+    <choices>
+        <description>Stores the choice label and value for the 48 GB option for RAMCapacityPicklist on the ScreenCollectLaptopReplacementDetails screen.</description>
+        <name>ChoiceRAM48GB</name>
+        <choiceText>48 GB</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>48 GB</stringValue>
+        </value>
+    </choices>
+    <choices>
+        <description>Stores the choice label and value for the 64 GB option for RAMCapacityPicklist on the ScreenCollectLaptopReplacementDetails screen.</description>
+        <name>ChoiceRAM64GB</name>
+        <choiceText>64 GB</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>64 GB</stringValue>
+        </value>
+    </choices>
+    <constants>
+        <description>Stores the value of the associated Service Process to use as the subject for the new service request record.</description>
+        <name>ServiceProcessName</name>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>Request Laptop Replacement</stringValue>
+        </value>
+    </constants>
+    <customProperties>
+        <name>ScreenProgressIndicator</name>
+        <value>
+            <stringValue>{&quot;location&quot;:&quot;top&quot;,&quot;type&quot;:&quot;simple&quot;}</stringValue>
+        </value>
+    </customProperties>
+    <description>Allows the user to enter details for requesting laptop replacement, such as laptop specifications, reason for replacement, and the required date, and creates a service request.</description>
+    <environments>Default</environments>
+    <interviewLabel>Request Laptop Replacement {!$Flow.CurrentDateTime}</interviewLabel>
+    <label>Request Laptop Replacement</label>
+    <processMetadataValues>
+        <name>BuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>CanvasMode</name>
+        <value>
+            <stringValue>AUTO_LAYOUT_CANVAS</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>OriginBuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processType>Flow</processType>
+    <screens>
+        <description>Allows the flow user to specify the reason for replacement, and the required specifications for the new laptop, including OS, disk size, RAM, and the needed by date.</description>
+        <name>ScreenCollectLaptopReplacementDetails</name>
+        <label>Collect Laptop Replacement Details</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <allowBack>false</allowBack>
+        <allowFinish>true</allowFinish>
+        <allowPause>false</allowPause>
+        <connector>
+            <targetReference>CreateServiceRequestForRequestLaptopReplacement</targetReference>
+        </connector>
+        <fields>
+            <name>ReasonForReplacementLongTextArea</name>
+            <fieldText>Reason for Replacement</fieldText>
+            <fieldType>LargeTextArea</fieldType>
+            <inputsOnNextNavToAssocScrn>UseStoredValues</inputsOnNextNavToAssocScrn>
+            <isRequired>true</isRequired>
+            <styleProperties>
+                <verticalAlignment>
+                    <stringValue>top</stringValue>
+                </verticalAlignment>
+                <width>
+                    <stringValue>12</stringValue>
+                </width>
+            </styleProperties>
+        </fields>
+        <fields>
+            <name>OperatingSystemPicklist</name>
+            <choiceReferences>ChoiceOSWindows</choiceReferences>
+            <choiceReferences>ChoiceOSMac</choiceReferences>
+            <dataType>String</dataType>
+            <fieldText>Operating System</fieldText>
+            <fieldType>DropdownBox</fieldType>
+            <inputsOnNextNavToAssocScrn>UseStoredValues</inputsOnNextNavToAssocScrn>
+            <isRequired>true</isRequired>
+            <styleProperties>
+                <verticalAlignment>
+                    <stringValue>top</stringValue>
+                </verticalAlignment>
+                <width>
+                    <stringValue>12</stringValue>
+                </width>
+            </styleProperties>
+        </fields>
+        <fields>
+            <name>DiskSizePicklist</name>
+            <choiceReferences>ChoiceDisk512GB</choiceReferences>
+            <choiceReferences>ChoiceDisk1TB</choiceReferences>
+            <choiceReferences>ChoiceDisk2TB</choiceReferences>
+            <dataType>String</dataType>
+            <fieldText>Disk Size</fieldText>
+            <fieldType>DropdownBox</fieldType>
+            <inputsOnNextNavToAssocScrn>UseStoredValues</inputsOnNextNavToAssocScrn>
+            <isRequired>true</isRequired>
+            <styleProperties>
+                <verticalAlignment>
+                    <stringValue>top</stringValue>
+                </verticalAlignment>
+                <width>
+                    <stringValue>12</stringValue>
+                </width>
+            </styleProperties>
+        </fields>
+        <fields>
+            <name>RAMCapacityPicklist</name>
+            <choiceReferences>ChoiceRAM24GB</choiceReferences>
+            <choiceReferences>ChoiceRAM36GB</choiceReferences>
+            <choiceReferences>ChoiceRAM48GB</choiceReferences>
+            <choiceReferences>ChoiceRAM64GB</choiceReferences>
+            <dataType>String</dataType>
+            <fieldText>RAM Capacity</fieldText>
+            <fieldType>DropdownBox</fieldType>
+            <inputsOnNextNavToAssocScrn>UseStoredValues</inputsOnNextNavToAssocScrn>
+            <isRequired>true</isRequired>
+            <styleProperties>
+                <verticalAlignment>
+                    <stringValue>top</stringValue>
+                </verticalAlignment>
+                <width>
+                    <stringValue>12</stringValue>
+                </width>
+            </styleProperties>
+        </fields>
+        <fields>
+            <name>RequiredByDate</name>
+            <dataType>Date</dataType>
+            <fieldText>Required By Date</fieldText>
+            <fieldType>InputField</fieldType>
+            <inputsOnNextNavToAssocScrn>UseStoredValues</inputsOnNextNavToAssocScrn>
+            <isRequired>true</isRequired>
+            <styleProperties>
+                <verticalAlignment>
+                    <stringValue>top</stringValue>
+                </verticalAlignment>
+                <width>
+                    <stringValue>12</stringValue>
+                </width>
+            </styleProperties>
+        </fields>
+        <nextOrFinishButtonLabel>Submit</nextOrFinishButtonLabel>
+        <showFooter>true</showFooter>
+        <showHeader>true</showHeader>
+    </screens>
+    <screens>
+        <description>Displays a confirmation message to the user that the laptop replacement request was successfully submitted.</description>
+        <name>ScreenConfirmationMessage</name>
+        <label>Confirmation Message</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <allowBack>false</allowBack>
+        <allowFinish>true</allowFinish>
+        <allowPause>false</allowPause>
+        <fields>
+            <name>ServiceRequestConfirmation</name>
+            <extensionName>runtime_service_itsm:serviceProcConfirm</extensionName>
+            <fieldType>ComponentInstance</fieldType>
+            <inputParameters>
+                <name>message</name>
+                <value>
+                    <elementReference>FeedbackMessageTextTemplate</elementReference>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>title</name>
+                <value>
+                    <elementReference>FeedbackTitleTextTemplate</elementReference>
+                </value>
+            </inputParameters>
+            <inputsOnNextNavToAssocScrn>UseStoredValues</inputsOnNextNavToAssocScrn>
+            <isRequired>true</isRequired>
+            <storeOutputAutomatically>true</storeOutputAutomatically>
+            <styleProperties>
+                <verticalAlignment>
+                    <stringValue>top</stringValue>
+                </verticalAlignment>
+                <width>
+                    <stringValue>12</stringValue>
+                </width>
+            </styleProperties>
+        </fields>
+        <showFooter>false</showFooter>
+        <showHeader>true</showHeader>
+    </screens>
+    <start>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <connector>
+            <targetReference>ScreenCollectLaptopReplacementDetails</targetReference>
+        </connector>
+    </start>
+    <status>Active</status>
+    <textTemplates>
+        <description>Stores the text template that contains the body of the confirmation message, including the service request tracking ID.</description>
+        <name>FeedbackMessageTextTemplate</name>
+        <isViewedAsPlainText>false</isViewedAsPlainText>
+        <text>&lt;p style=&quot;text-align: center;&quot;&gt;&lt;span style=&quot;color: rgb(116, 116, 116); font-size: 16px;&quot;&gt;Your request was received and we&apos;ve created a record to track the request: {!CreateServiceRequestForRequestLaptopReplacement.svcRequestCreationResult.serviceRequestDetails.anchorEntityNumber}.&lt;/span&gt;&lt;/p&gt;&lt;p style=&quot;text-align: center;&quot;&gt;&lt;span style=&quot;color: rgb(116, 116, 116); font-size: 16px;&quot;&gt;You&apos;ll receive email updates whenever the status changes.&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;br&gt;&lt;/p&gt;</text>
+    </textTemplates>
+    <textTemplates>
+        <description>Stores the text template that contains the title of the confirmation message.</description>
+        <name>FeedbackTitleTextTemplate</name>
+        <isViewedAsPlainText>false</isViewedAsPlainText>
+        <text>&lt;p style=&quot;text-align: center;&quot;&gt;&lt;strong style=&quot;background-color: rgb(255, 255, 255); font-size: 16px; color: rgb(46, 132, 74);&quot;&gt;Request Submitted&lt;/strong&gt;&lt;/p&gt;</text>
+    </textTemplates>
+</Flow>

@@ -1,0 +1,29 @@
+{
+  "required" : [ "productId" ],
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "productId" : {
+      "title" : "Product ID",
+      "description" : "The ID of the product or service process to fetch the product launch card details for.",
+      "lightning:type" : "lightning__textType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    },
+    "siteName" : {
+      "title" : "Site Name",
+      "description" : "The name of the site that's associated with this request.",
+      "lightning:type" : "lightning__textType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    },
+    "channelType" : {
+      "title" : "Channel Type",
+      "description" : "The channel type for which the launch URL should be generated.",
+      "lightning:type" : "lightning__textType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    }
+  },
+  "lightning:type" : "lightning__objectType",
+  "lightning:textIndexed" : true
+}

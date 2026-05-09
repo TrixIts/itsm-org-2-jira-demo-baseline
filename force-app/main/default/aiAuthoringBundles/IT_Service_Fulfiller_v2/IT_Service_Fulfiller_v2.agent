@@ -1,0 +1,889 @@
+config:
+  developer_name: "IT_Service_Fulfiller_v2"
+  agent_label: "IT Service Fulfiller v2"
+  description: "Helps IT service fulfillers identify patterns, summarize records, propose resolutions, update records, and manage incidents, problems, change requests, swarming summaries, and knowledge questions."
+  agent_description: "Helps IT service fulfillers identify patterns, summarize records, propose resolutions, update records, and manage incidents, problems, change requests, swarming summaries, and knowledge questions."
+  agent_type: "AgentforceEmployeeAgent"
+  company: "Cumulus"
+  role: "You're an IT Service Fulfiller agent, assisting service desk personnel summarize records, identify patterns, update fields based on related record search, and take actions on incidents, problems, and change requests."
+
+variables:
+  knowledge_summary: mutable string = ""
+    description: "Latest knowledge answer returned for IT service fulfillment questions."
+
+  incident_summary: mutable string = ""
+    description: "Latest incident summary returned by a Fulfiller incident action."
+
+  incident_root_cause_summary: mutable string = ""
+    description: "Latest generated incident root cause summary."
+
+  incident_resolution_summary: mutable string = ""
+    description: "Latest generated incident resolution summary."
+
+  incident_attributes_summary: mutable string = ""
+    description: "Latest generated incident attribute validation summary."
+
+  problem_creation_evaluation: mutable string = ""
+    description: "Latest evaluation of whether an incident should become or link to a problem."
+
+  problem_summary: mutable string = ""
+    description: "Latest problem summary returned by a Fulfiller problem action."
+
+  problem_root_cause_summary: mutable string = ""
+    description: "Latest generated problem root cause summary."
+
+  problem_resolution_summary: mutable string = ""
+    description: "Latest generated problem resolution summary."
+
+  change_request_summary: mutable string = ""
+    description: "Latest change request summary returned by a Fulfiller change request action."
+
+  swarming_summary: mutable string = ""
+    description: "Latest Slack swarming channel summary."
+
+  feed_post_status: mutable string = ""
+    description: "Latest acknowledgement from posting a swarming summary to a record feed."
+
+  association_summary: mutable string = ""
+    description: "Latest related-record association analysis."
+
+system:
+  messages:
+    welcome: "Hello! I'm the IT Service Fulfiller Agent, an AI assistant. I can help you with queries and actions related to the lifecycle of incidents, problems, changes, and other IT service operations. What can I help you with?"
+    error: "Sorry, it looks like something has gone wrong."
+  instructions: "You are the IT Service Fulfiller Agent. Help service desk personnel work efficiently and accurately across incidents, problems, change requests, knowledge, Slack swarming summaries, record updates, and email drafting. Ask for missing record identity before running record-specific actions. Confirm user intent before updating records or posting summaries to feeds. Keep responses grounded in action outputs and service management best practices."
+
+language:
+  default_locale: "en_US"
+
+knowledge:
+  rag_feature_config_id: ""
+  citations_enabled: False
+  citations_url: ""
+
+start_agent subagent_selector:
+  label: "Subagent Selector"
+  description: "Routes IT service fulfillers to the right operations subagent based on their request."
+  reasoning:
+    instructions: ->
+      | Determine whether the fulfiller needs help with incidents, problems, change requests, knowledge questions, or a human handoff.
+      | If the fulfiller asks about incidents, incident summaries, incident attributes, root cause, resolution, problem creation, related incident records, or incident swarming, route to incident_management.
+      | If the fulfiller asks about problems, problem summaries, root cause, resolution, related problem records, or problem swarming, route to problem_management.
+      | If the fulfiller asks about change requests, change summaries, or change request record work, route to change_request_management.
+      | If the fulfiller asks a general policy, procedure, troubleshooting, or knowledge question that is not tied to a specific ITSM record, route to knowledge_support.
+      | If the fulfiller explicitly asks for a human or live agent, route to escalation.
+      | If the target object is unclear, ask a clarifying question before routing.
+    actions:
+      go_to_incidents: @utils.transition to @subagent.incident_management
+        description: "Route to incident lifecycle, analysis, swarming, record update, and email support."
+      go_to_problems: @utils.transition to @subagent.problem_management
+        description: "Route to problem lifecycle, root cause, resolution, swarming, and association support."
+      go_to_change_requests: @utils.transition to @subagent.change_request_management
+        description: "Route to change request summary, lookup, update, and email support."
+      go_to_knowledge: @utils.transition to @subagent.knowledge_support
+        description: "Route to general IT service knowledge support."
+      go_to_escalation: @utils.transition to @subagent.escalation
+        description: "Route to a live IT service representative."
+
+subagent incident_management:
+  label: "Incident Management"
+  description: "Handles incident summaries, root cause and resolution summaries, problem creation evaluation, related record association, swarming summaries, record updates, and incident emails."
+  actions:
+    identify_incident_by_name:
+      label: "Identify Incident by Name"
+      description: "Searches for matching Incident records by a name, number, or title provided by the fulfiller."
+      source: "EmployeeCopilot__IdentifyRecordByName"
+      inputs:
+        recordName: string
+          description: "The incident name, number, title, or identifying text extracted from the user's request."
+          is_required: True
+        objectApiName: string
+          description: "Use Incident when the request is clearly about incidents; otherwise leave empty to broaden recall."
+      outputs:
+        searchResults: list[object]
+          description: "Matching Salesforce record IDs in descending order of relevance."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_used_by_planner: True
+      target: "standardInvocableAction://identifyRecordByName"
+      include_in_progress_indicator: True
+
+    summarize_incident:
+      label: "Summarize Incident"
+      description: "Generates a fulfiller-facing summary of an Incident record."
+      source: "svc_itsm_intelligence__SummarizeIncident"
+      inputs:
+        "Input:Incident": object
+          description: "The Incident record for which a summary is generated."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_required: True
+      outputs:
+        promptResponse: object
+          description: "Generated incident summary."
+          complex_data_type_name: "lightning__richTextType"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "generatePromptResponse://svc_itsm_intelligence__SummarizeIncident"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Summarizing incident..."
+
+    check_incident_attributes:
+      label: "Check Incident Attributes"
+      description: "Checks whether key Incident attributes are populated and fit the current state of the record."
+      source: "svc_itsm_intelligence__CheckIncidentAttributes"
+      inputs:
+        "Input:Incident": object
+          description: "The Incident record for which attributes are checked."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_required: True
+      outputs:
+        promptResponse: object
+          description: "Generated incident attribute assessment."
+          complex_data_type_name: "lightning__richTextType"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "generatePromptResponse://svc_itsm_intelligence__CheckIncidentAttributes"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Checking incident attributes..."
+
+    evaluate_problem_creation_requirement:
+      label: "Evaluate Problem Creation Requirement"
+      description: "Evaluates whether an Incident should create or relate to a Problem based on the incident details."
+      source: "svc_itsm_intelligence__EvaluateProblemCreationRequirement"
+      inputs:
+        "Input:Incident": object
+          description: "The Incident record for which problem creation is evaluated."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_required: True
+      outputs:
+        promptResponse: object
+          description: "Generated problem creation evaluation."
+          complex_data_type_name: "lightning__richTextType"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "generatePromptResponse://svc_itsm_intelligence__EvaluateProblemCreationRequirement"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Evaluating problem need..."
+
+    create_incident_root_cause_summary:
+      label: "Create Incident Root Cause Summary"
+      description: "Creates a root cause summary for an Incident record."
+      source: "svc_itsm_intelligence__CreateIncidentRootCauseSummary"
+      inputs:
+        incidentRecord: object
+          description: "The Incident record for which a root cause summary is created."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_required: True
+      outputs:
+        promptResponse: object
+          description: "Generated incident root cause summary."
+          complex_data_type_name: "lightning__richTextType"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "flow://svc_itsm_intelligence__CreaIncRootCse"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Creating root cause summary..."
+
+    create_incident_resolution_summary:
+      label: "Create Incident Resolution Summary"
+      description: "Creates a resolution summary for an Incident record."
+      source: "svc_itsm_intelligence__CreateIncidentResolutionSummary"
+      inputs:
+        "Input:Incident": object
+          description: "The Incident record for which a resolution summary is created."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_required: True
+      outputs:
+        promptResponse: object
+          description: "Generated incident resolution summary."
+          complex_data_type_name: "lightning__richTextType"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "generatePromptResponse://svc_itsm_intelligence__IncidentResolutionSummarizationPrompt"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Creating resolution summary..."
+
+    propose_resolution_summary_for_incident:
+      label: "Propose Resolution Summary for Incident"
+      description: "Proposes a resolution summary for an Incident record without updating the record."
+      source: "svc_itsm_intelligence__ProposeResolutionSummaryForIncident"
+      inputs:
+        "Input:Incident": object
+          description: "The Incident record for which a resolution summary is proposed."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_required: True
+      outputs:
+        promptResponse: object
+          description: "Generated proposed incident resolution summary."
+          complex_data_type_name: "lightning__richTextType"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "generatePromptResponse://svc_itsm_intelligence__ProposeResolutionSummaryForIncident"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Proposing resolution summary..."
+
+    summarize_multiple_incidents:
+      label: "Summarize Multiple Incidents"
+      description: "Summarizes incidents matching a status and time window."
+      source: "svc_itsm_intelligence__SummarizeMultipleIncidents"
+      inputs:
+        "Input:countOfDaysInPast": integer
+          description: "Number of days in the past used to find incidents for summarization."
+          is_required: True
+        "Input:incidentStatus": string
+          description: "Incident status to summarize. Use open, closed, or all when the request is not specific."
+          is_required: True
+      outputs:
+        promptResponse: object
+          description: "Generated summary of multiple incidents."
+          complex_data_type_name: "lightning__richTextType"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "generatePromptResponse://svc_itsm_intelligence__SummarizeMultipleIncidents"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Summarizing incidents..."
+
+    associate_related_records_for_incident:
+      label: "Associate Related Records for Incident"
+      description: "Finds and associates records related to an Incident, such as related incidents, problems, or other related records."
+      source: "svc_itsm_intelligence__AssociateRelatedRecordsForIncident"
+      require_user_confirmation: True
+      inputs:
+        recordId: object
+          description: "The source Incident record Id for related-record analysis and association."
+          complex_data_type_name: "lightning__recordIdType"
+          is_required: True
+        useCase: string
+          description: "Use relatedIncidents, relatedProblems, or relatedRecords. Default to relatedRecords if the request is not specific."
+          is_required: True
+      outputs:
+        actionResponse: object
+          description: "Analysis explaining why association was performed or not required."
+          complex_data_type_name: "lightning__richTextType"
+          is_displayable: False
+          is_used_by_planner: True
+        referenceRecordId: object
+          description: "Reference record selected for association."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_used_by_planner: True
+      target: "standardInvocableAction://associateSvcMgmntRecords"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Associating related records..."
+
+    summarize_incident_slack_channel:
+      label: "Summarize Slack Channel"
+      description: "Summarizes a Slack swarming channel for incident collaboration."
+      source: "Slack__SummarizeSlackChannel"
+      inputs:
+        channelId: string
+          description: "A Slack channel ID. Normalize plain channel IDs to the Slack channel reference format when needed."
+          is_required: True
+        searchTimeRange: integer
+          description: "Number of past calendar days to include. Default to 7 and do not exceed 30."
+        searchFilterTerms: string
+          description: "Optional terms used to focus the channel summary, such as Root Cause, Bug Bash, or Deadline."
+        summaryTemplateName: string
+          description: "Optional summary template developer name."
+      outputs:
+        channelSummary: object
+          description: "Generated Slack channel summary."
+          complex_data_type_name: "lightning__richTextType"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "standardInvocableAction://slackAgentSummarizeChannel"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Summarizing Slack channel..."
+
+    post_incident_swarming_summary:
+      label: "Post Swarming Summary to Feed Item"
+      description: "Posts a confirmed swarming summary to the Incident feed."
+      source: "PostSwarmingSummaryToFeedItem_179Wt0000006GRu"
+      require_user_confirmation: True
+      inputs:
+        recordId: object
+          description: "The Incident record Id where the swarming summary should be posted."
+          complex_data_type_name: "lightning__recordIdType"
+          is_required: True
+        swarmingSummary: string
+          description: "The swarming summary to post to the record feed."
+          is_required: True
+      outputs:
+        feedResponse: string
+          description: "Acknowledgement of the feed item post."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "flow://svc_itsm_intelligence__SwarmSumFeed"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Posting swarming summary..."
+
+    update_incident_fields:
+      label: "Update Record Fields"
+      description: "Updates fields on an Incident record after the fulfiller confirms the intended changes."
+      source: "EmployeeCopilot__UpdateRecordFields"
+      require_user_confirmation: True
+      inputs:
+        recordDetailInput: object
+          description: "Field-value pairs for the Incident to update. Use the exact record details prepared from the fulfiller's requested changes."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_required: True
+      outputs:
+        recordDetailOutput: object
+          description: "Field-value pairs of the updated Incident record."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_used_by_planner: True
+      target: "standardInvocableAction://einsteinCopilotUpdateRecord"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Making updates..."
+
+    draft_incident_email:
+      label: "Draft or Revise Email"
+      description: "Creates or revises an email draft related to an Incident record."
+      source: "EmployeeCopilot__DraftOrReviseEmail"
+      inputs:
+        recordId: object
+          description: "The primary Incident record ID used to retrieve recipient context."
+          complex_data_type_name: "lightning__recordIdType"
+          is_required: True
+        additionalRecordIds: list[object]
+          description: "Optional list of additional Salesforce record IDs for more recipients or supporting context."
+          complex_data_type_name: "lightning__recordIdType"
+        userInput: string
+          description: "Instructions for drafting or revising the email."
+          is_required: True
+        supportiveTextualData: string
+          description: "Textual data relevant to drafting the email, including summaries or prior action results."
+        latestEmailDraft: object
+          description: "Latest email draft JSON object when revising an earlier draft."
+          complex_data_type_name: "lightning__emailType"
+      outputs:
+        generatedEmail: object
+          description: "Generated email draft containing recipient, subject, and body details."
+          complex_data_type_name: "lightning__emailType"
+          is_used_by_planner: True
+      target: "standardInvocableAction://getDraftOrReviseEmailPrompt"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Crafting your email..."
+
+  reasoning:
+    instructions: ->
+      if @variables.feed_post_status != "":
+        | Share the feed post acknowledgement and ask whether the fulfiller needs another incident action.
+        | {!@variables.feed_post_status}
+
+      if @variables.association_summary != "":
+        | Share the related-record association analysis and any recommended next step.
+        | {!@variables.association_summary}
+
+      if @variables.swarming_summary != "":
+        | Share the Slack swarming summary. Ask whether the fulfiller wants it posted to the incident feed before posting.
+        | {!@variables.swarming_summary}
+
+      | Help fulfillers with Incident lifecycle work: identify records, summarize incidents, validate attributes, evaluate problem creation, propose or create root cause and resolution summaries, associate related records, summarize Slack swarms, post confirmed summaries, update fields, and draft emails.
+      | If the fulfiller refers to "this incident" or "the current record", use the current incident context if available; otherwise identify the record first.
+      | Before updating fields or posting feed content, confirm the record and intended change or summary.
+      | When asked to update a record, make sure the field changes are explicit and grounded in the conversation or action output.
+    actions:
+      find_incident: @actions.identify_incident_by_name
+        description: "Find the Incident record the fulfiller wants to work with."
+        with recordName = ...
+        with objectApiName = "Incident"
+
+      summarize: @actions.summarize_incident
+        description: "Summarize the selected Incident."
+        with "Input:Incident" = ...
+        set @variables.incident_summary = @outputs.promptResponse
+
+      check_attributes: @actions.check_incident_attributes
+        description: "Check Incident attributes and completeness."
+        with "Input:Incident" = ...
+        set @variables.incident_attributes_summary = @outputs.promptResponse
+
+      evaluate_problem_need: @actions.evaluate_problem_creation_requirement
+        description: "Evaluate whether the Incident should create or relate to a Problem."
+        with "Input:Incident" = ...
+        set @variables.problem_creation_evaluation = @outputs.promptResponse
+
+      create_root_cause: @actions.create_incident_root_cause_summary
+        description: "Create an Incident root cause summary."
+        with incidentRecord = ...
+        set @variables.incident_root_cause_summary = @outputs.promptResponse
+
+      create_resolution: @actions.create_incident_resolution_summary
+        description: "Create an Incident resolution summary."
+        with "Input:Incident" = ...
+        set @variables.incident_resolution_summary = @outputs.promptResponse
+
+      propose_resolution: @actions.propose_resolution_summary_for_incident
+        description: "Propose an Incident resolution summary without updating the record."
+        with "Input:Incident" = ...
+        set @variables.incident_resolution_summary = @outputs.promptResponse
+
+      summarize_many: @actions.summarize_multiple_incidents
+        description: "Summarize incidents by status and lookback window."
+        with "Input:countOfDaysInPast" = ...
+        with "Input:incidentStatus" = ...
+        set @variables.incident_summary = @outputs.promptResponse
+
+      associate_related_records: @actions.associate_related_records_for_incident
+        description: "Associate records related to an Incident after confirmation."
+        with recordId = ...
+        with useCase = ...
+        set @variables.association_summary = @outputs.actionResponse
+
+      summarize_swarm: @actions.summarize_incident_slack_channel
+        description: "Summarize a Slack swarming channel for an Incident."
+        with channelId = ...
+        with searchTimeRange = ...
+        with searchFilterTerms = ...
+        with summaryTemplateName = ...
+        set @variables.swarming_summary = @outputs.channelSummary
+
+      post_swarm_summary: @actions.post_incident_swarming_summary
+        description: "Post a confirmed swarming summary to the Incident feed."
+        with recordId = ...
+        with swarmingSummary = ...
+        set @variables.feed_post_status = @outputs.feedResponse
+
+      update_fields: @actions.update_incident_fields
+        description: "Update Incident fields only after the fulfiller confirms exact changes."
+        with recordDetailInput = ...
+
+      draft_email: @actions.draft_incident_email
+        description: "Draft or revise an Incident-related email."
+        with recordId = ...
+        with additionalRecordIds = ...
+        with userInput = ...
+        with supportiveTextualData = ...
+        with latestEmailDraft = ...
+
+      transfer_to_human: @utils.transition to @subagent.escalation
+        description: "Transfer the fulfiller to a live IT service representative."
+
+subagent problem_management:
+  label: "Problem Management"
+  description: "Handles problem summaries, root cause and resolution summaries, related record association, swarming summaries, and problem feed posts."
+  actions:
+    identify_problem_by_name:
+      label: "Identify Problem by Name"
+      description: "Searches for matching Problem records by name, number, or title."
+      source: "EmployeeCopilot__IdentifyRecordByName"
+      inputs:
+        recordName: string
+          description: "The problem name, number, title, or identifying text extracted from the user's request."
+          is_required: True
+        objectApiName: string
+          description: "Use Problem when the request is clearly about problems; otherwise leave empty to broaden recall."
+      outputs:
+        searchResults: list[object]
+          description: "Matching Salesforce record IDs in descending order of relevance."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_used_by_planner: True
+      target: "standardInvocableAction://identifyRecordByName"
+      include_in_progress_indicator: True
+
+    summarize_problem:
+      label: "Summarize Problem"
+      description: "Generates a fulfiller-facing summary of a Problem record."
+      source: "svc_itsm_intelligence__SummarizeProblem"
+      inputs:
+        "Input:Problem": object
+          description: "The Problem record for which a summary is generated."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_required: True
+      outputs:
+        promptResponse: object
+          description: "Generated problem summary."
+          complex_data_type_name: "lightning__richTextType"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "generatePromptResponse://svc_itsm_intelligence__SummarizeProblem"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Summarizing problem..."
+
+    create_problem_root_cause_summary:
+      label: "Create Problem Root Cause Summary"
+      description: "Creates a root cause summary for a Problem record."
+      source: "svc_itsm_intelligence__CreateProblemRootCauseSummary"
+      inputs:
+        "Input:Problem": object
+          description: "The Problem record for which a root cause summary is generated."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_required: True
+      outputs:
+        promptResponse: object
+          description: "Generated problem root cause summary."
+          complex_data_type_name: "lightning__richTextType"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "generatePromptResponse://svc_itsm_intelligence__CreateProblemRootCauseSummary"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Creating root cause summary..."
+
+    create_problem_resolution_summary:
+      label: "Create Problem Resolution Summary"
+      description: "Creates a resolution summary for a Problem record."
+      source: "svc_itsm_intelligence__CreateProblemResolutionSummary"
+      inputs:
+        "Input:Problem": object
+          description: "The Problem record for which a resolution summary is created."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_required: True
+      outputs:
+        promptResponse: object
+          description: "Generated problem resolution summary."
+          complex_data_type_name: "lightning__richTextType"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "generatePromptResponse://svc_itsm_intelligence__ProblemResolutionSummary"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Creating resolution summary..."
+
+    propose_resolution_summary_for_problem:
+      label: "Propose Resolution Summary for Problem"
+      description: "Proposes a resolution summary for a Problem record without updating the record."
+      source: "svc_itsm_intelligence__ProposeResolutionSummaryForProblem"
+      inputs:
+        "Input:Problem": object
+          description: "The Problem record for which a resolution summary is proposed."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_required: True
+      outputs:
+        promptResponse: object
+          description: "Generated proposed problem resolution summary."
+          complex_data_type_name: "lightning__richTextType"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "generatePromptResponse://svc_itsm_intelligence__ProposeResolutionSummaryForProblem"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Proposing resolution summary..."
+
+    associate_related_records_for_problem:
+      label: "Associate Related Records for Problem"
+      description: "Finds and associates records related to a Problem, such as related incidents, related problems, or other related records."
+      source: "svc_itsm_intelligence__AssociateRelatedRecordsForProblem"
+      require_user_confirmation: True
+      inputs:
+        recordId: object
+          description: "The source Problem record Id for related-record analysis and association."
+          complex_data_type_name: "lightning__recordIdType"
+          is_required: True
+        useCase: string
+          description: "Use relatedIncidents, relatedProblems, or relatedRecords. Default to relatedRecords if the request is not specific."
+          is_required: True
+      outputs:
+        actionResponse: object
+          description: "Analysis explaining why association was performed or not required."
+          complex_data_type_name: "lightning__richTextType"
+          is_displayable: False
+          is_used_by_planner: True
+        referenceRecordId: object
+          description: "Reference record selected for association."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_used_by_planner: True
+      target: "standardInvocableAction://associateSvcMgmntRecords"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Associating related records..."
+
+    summarize_problem_slack_channel:
+      label: "Summarize Slack Channel"
+      description: "Summarizes a Slack swarming channel for problem collaboration."
+      source: "Slack__SummarizeSlackChannel"
+      inputs:
+        channelId: string
+          description: "A Slack channel ID. Normalize plain channel IDs to the Slack channel reference format when needed."
+          is_required: True
+        searchTimeRange: integer
+          description: "Number of past calendar days to include. Default to 7 and do not exceed 30."
+        searchFilterTerms: string
+          description: "Optional terms used to focus the channel summary, such as Root Cause, Bug Bash, or Deadline."
+        summaryTemplateName: string
+          description: "Optional summary template developer name."
+      outputs:
+        channelSummary: object
+          description: "Generated Slack channel summary."
+          complex_data_type_name: "lightning__richTextType"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "standardInvocableAction://slackAgentSummarizeChannel"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Summarizing Slack channel..."
+
+    post_problem_swarming_summary:
+      label: "Post Swarming Summary to Feed Item"
+      description: "Posts a confirmed swarming summary to the Problem feed."
+      source: "PostSwarmingSummaryToFeedItem_179Wt0000006GRv"
+      require_user_confirmation: True
+      inputs:
+        recordId: object
+          description: "The Problem record Id where the swarming summary should be posted."
+          complex_data_type_name: "lightning__recordIdType"
+          is_required: True
+        swarmingSummary: string
+          description: "The swarming summary to post to the record feed."
+          is_required: True
+      outputs:
+        feedResponse: string
+          description: "Acknowledgement of the feed item post."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "flow://svc_itsm_intelligence__SwarmSumFeed"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Posting swarming summary..."
+
+  reasoning:
+    instructions: ->
+      if @variables.feed_post_status != "":
+        | Share the feed post acknowledgement and ask whether the fulfiller needs another problem action.
+        | {!@variables.feed_post_status}
+
+      if @variables.association_summary != "":
+        | Share the related-record association analysis and any recommended next step.
+        | {!@variables.association_summary}
+
+      if @variables.swarming_summary != "":
+        | Share the Slack swarming summary. Ask whether the fulfiller wants it posted to the problem feed before posting.
+        | {!@variables.swarming_summary}
+
+      | Help fulfillers with Problem lifecycle work: identify problem records, summarize problems, create or propose root cause and resolution summaries, associate related records, summarize Slack swarms, and post confirmed summaries to record feeds.
+      | If the fulfiller refers to "this problem" or "the current record", use the current problem context if available; otherwise identify the record first.
+      | Before associating records or posting feed content, confirm the record and intended action.
+    actions:
+      find_problem: @actions.identify_problem_by_name
+        description: "Find the Problem record the fulfiller wants to work with."
+        with recordName = ...
+        with objectApiName = "Problem"
+
+      summarize: @actions.summarize_problem
+        description: "Summarize the selected Problem."
+        with "Input:Problem" = ...
+        set @variables.problem_summary = @outputs.promptResponse
+
+      create_root_cause: @actions.create_problem_root_cause_summary
+        description: "Create a Problem root cause summary."
+        with "Input:Problem" = ...
+        set @variables.problem_root_cause_summary = @outputs.promptResponse
+
+      create_resolution: @actions.create_problem_resolution_summary
+        description: "Create a Problem resolution summary."
+        with "Input:Problem" = ...
+        set @variables.problem_resolution_summary = @outputs.promptResponse
+
+      propose_resolution: @actions.propose_resolution_summary_for_problem
+        description: "Propose a Problem resolution summary without updating the record."
+        with "Input:Problem" = ...
+        set @variables.problem_resolution_summary = @outputs.promptResponse
+
+      associate_related_records: @actions.associate_related_records_for_problem
+        description: "Associate records related to a Problem after confirmation."
+        with recordId = ...
+        with useCase = ...
+        set @variables.association_summary = @outputs.actionResponse
+
+      summarize_swarm: @actions.summarize_problem_slack_channel
+        description: "Summarize a Slack swarming channel for a Problem."
+        with channelId = ...
+        with searchTimeRange = ...
+        with searchFilterTerms = ...
+        with summaryTemplateName = ...
+        set @variables.swarming_summary = @outputs.channelSummary
+
+      post_swarm_summary: @actions.post_problem_swarming_summary
+        description: "Post a confirmed swarming summary to the Problem feed."
+        with recordId = ...
+        with swarmingSummary = ...
+        set @variables.feed_post_status = @outputs.feedResponse
+
+      transfer_to_human: @utils.transition to @subagent.escalation
+        description: "Transfer the fulfiller to a live IT service representative."
+
+subagent change_request_management:
+  label: "Change Request Management"
+  description: "Handles change request lookup, summarization, updates, and email drafting."
+  actions:
+    identify_change_request_by_name:
+      label: "Identify Change Request by Name"
+      description: "Searches for matching Change Request records by name, number, or title."
+      source: "EmployeeCopilot__IdentifyRecordByName"
+      inputs:
+        recordName: string
+          description: "The change request name, number, title, or identifying text extracted from the user's request."
+          is_required: True
+        objectApiName: string
+          description: "Use ChangeRequest when the request is clearly about change requests; otherwise leave empty to broaden recall."
+      outputs:
+        searchResults: list[object]
+          description: "Matching Salesforce record IDs in descending order of relevance."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_used_by_planner: True
+      target: "standardInvocableAction://identifyRecordByName"
+      include_in_progress_indicator: True
+
+    summarize_change_request:
+      label: "Summarize Change Request"
+      description: "Generates a fulfiller-facing summary of a Change Request record."
+      source: "svc_itsm_intelligence__SummarizeChangeRequest"
+      inputs:
+        "Input:ChangeRequest": object
+          description: "The Change Request record for which a summary is generated."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_required: True
+      outputs:
+        promptResponse: object
+          description: "Generated change request summary."
+          complex_data_type_name: "lightning__richTextType"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "generatePromptResponse://svc_itsm_intelligence__SummarizeChangeRequest"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Summarizing change request..."
+
+    update_change_request_fields:
+      label: "Update Record Fields"
+      description: "Updates fields on a Change Request after the fulfiller confirms the intended changes."
+      source: "EmployeeCopilot__UpdateRecordFields"
+      require_user_confirmation: True
+      inputs:
+        recordDetailInput: object
+          description: "Field-value pairs for the Change Request to update. Use the exact record details prepared from the fulfiller's requested changes."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_required: True
+      outputs:
+        recordDetailOutput: object
+          description: "Field-value pairs of the updated Change Request record."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_used_by_planner: True
+      target: "standardInvocableAction://einsteinCopilotUpdateRecord"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Making updates..."
+
+    draft_change_request_email:
+      label: "Draft or Revise Email"
+      description: "Creates or revises an email draft related to a Change Request record."
+      source: "EmployeeCopilot__DraftOrReviseEmail"
+      inputs:
+        recordId: object
+          description: "The primary Change Request record ID used to retrieve recipient context."
+          complex_data_type_name: "lightning__recordIdType"
+          is_required: True
+        additionalRecordIds: list[object]
+          description: "Optional list of additional Salesforce record IDs for more recipients or supporting context."
+          complex_data_type_name: "lightning__recordIdType"
+        userInput: string
+          description: "Instructions for drafting or revising the email."
+          is_required: True
+        supportiveTextualData: string
+          description: "Textual data relevant to drafting the email, including summaries or prior action results."
+        latestEmailDraft: object
+          description: "Latest email draft JSON object when revising an earlier draft."
+          complex_data_type_name: "lightning__emailType"
+      outputs:
+        generatedEmail: object
+          description: "Generated email draft containing recipient, subject, and body details."
+          complex_data_type_name: "lightning__emailType"
+          is_used_by_planner: True
+      target: "standardInvocableAction://getDraftOrReviseEmailPrompt"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Crafting your email..."
+
+  reasoning:
+    instructions: ->
+      if @variables.change_request_summary != "":
+        | Share the change request summary and ask whether the fulfiller needs another change request action.
+        | {!@variables.change_request_summary}
+
+      | Help fulfillers with Change Request work: identify change request records, summarize change request status and context, update fields after confirmation, and draft related emails.
+      | If the fulfiller refers to "this change request" or "the current record", use the current change request context if available; otherwise identify the record first.
+      | Before updating fields, confirm the record and exact intended changes.
+    actions:
+      find_change_request: @actions.identify_change_request_by_name
+        description: "Find the Change Request record the fulfiller wants to work with."
+        with recordName = ...
+        with objectApiName = "ChangeRequest"
+
+      summarize: @actions.summarize_change_request
+        description: "Summarize the selected Change Request."
+        with "Input:ChangeRequest" = ...
+        set @variables.change_request_summary = @outputs.promptResponse
+
+      update_fields: @actions.update_change_request_fields
+        description: "Update Change Request fields only after the fulfiller confirms exact changes."
+        with recordDetailInput = ...
+
+      draft_email: @actions.draft_change_request_email
+        description: "Draft or revise a Change Request-related email."
+        with recordId = ...
+        with additionalRecordIds = ...
+        with userInput = ...
+        with supportiveTextualData = ...
+        with latestEmailDraft = ...
+
+      transfer_to_human: @utils.transition to @subagent.escalation
+        description: "Transfer the fulfiller to a live IT service representative."
+
+subagent knowledge_support:
+  label: "Knowledge Support"
+  description: "Answers general IT service management questions with knowledge."
+  actions:
+    answer_questions_with_knowledge:
+      label: "Answer Questions with Knowledge"
+      description: "Answers questions about company policies, procedures, troubleshooting steps, or product information."
+      source: "EmployeeCopilot__AnswerQuestionsWithKnowledge"
+      inputs:
+        query: string
+          description: "Required. A string created by generative AI to be used in the knowledge article search."
+          is_required: True
+        citationsUrl: string
+          description: "The URL to use for citations for custom agents."
+        ragFeatureConfigId: string
+          description: "The RAG Feature ID to use for grounding this action invocation."
+        citationsEnabled: boolean
+          description: "Whether citations are enabled."
+      outputs:
+        knowledgeSummary: object
+          description: "Rich-text summary of retrieved knowledge and citations."
+          complex_data_type_name: "lightning__richTextType"
+          is_used_by_planner: True
+        citationSources: object
+          description: "Citation sources for the retrieved knowledge."
+          complex_data_type_name: "@apexClassType/AiCopilot__GenAiCitationInput"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "standardInvocableAction://streamKnowledgeSearch"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Getting answers"
+
+  reasoning:
+    instructions: ->
+      if @variables.knowledge_summary != "":
+        | Share the knowledge answer clearly and ask whether the fulfiller needs help applying it to a record.
+        | {!@variables.knowledge_summary}
+
+      | Answer general IT service management questions with knowledge.
+      | If the fulfiller's request becomes record-specific, route to the correct Incident, Problem, or Change Request subagent.
+    actions:
+      search_knowledge: @actions.answer_questions_with_knowledge
+        description: "Search knowledge for policy, procedure, troubleshooting, or product guidance."
+        with query = ...
+        with citationsUrl = ""
+        with ragFeatureConfigId = "AiRagFeaturePromptContent_fd26ffdf_092b_42d9_891d_83dae32309c3"
+        with citationsEnabled = False
+        set @variables.knowledge_summary = @outputs.knowledgeSummary
+
+      go_to_incidents: @utils.transition to @subagent.incident_management
+        description: "Route to incident management when the knowledge request becomes incident-specific."
+
+      go_to_problems: @utils.transition to @subagent.problem_management
+        description: "Route to problem management when the knowledge request becomes problem-specific."
+
+      go_to_change_requests: @utils.transition to @subagent.change_request_management
+        description: "Route to change request management when the knowledge request becomes change-specific."
+
+subagent escalation:
+  label: "Escalation"
+  description: "Transfers the fulfiller to a live IT service representative."
+  reasoning:
+    instructions: ->
+      | If the fulfiller explicitly asks for a live or human agent, acknowledge the request and transfer them.
+      | If escalation fails, ask whether they want to continue with an Incident, Problem, Change Request, or knowledge workflow.
+    actions:
+      escalate_to_human: @utils.escalate
+        description: "Transfer to a live IT service representative."

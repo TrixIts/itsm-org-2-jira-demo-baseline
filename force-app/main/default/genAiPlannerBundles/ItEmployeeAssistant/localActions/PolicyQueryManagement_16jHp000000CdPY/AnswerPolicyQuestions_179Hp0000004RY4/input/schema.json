@@ -1,0 +1,15 @@
+{
+  "required" : [ "Input:userQuery" ],
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "Input:userQuery" : {
+      "title" : "User Query",
+      "description" : "The query of the user in natural language about company policies for which they need an answer.",
+      "lightning:type" : "lightning__textType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    }
+  },
+  "lightning:type" : "lightning__objectType",
+  "lightning:textIndexed" : true
+}

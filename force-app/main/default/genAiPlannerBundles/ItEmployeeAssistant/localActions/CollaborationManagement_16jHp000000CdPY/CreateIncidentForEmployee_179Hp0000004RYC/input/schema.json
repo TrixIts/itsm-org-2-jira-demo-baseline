@@ -1,0 +1,15 @@
+{
+  "required" : [ "chatContext" ],
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "chatContext" : {
+      "title" : "chatContext",
+      "description" : "The details provided by an employee in a chat that act as the context for incident creation.",
+      "lightning:type" : "lightning__textType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    }
+  },
+  "lightning:type" : "lightning__objectType",
+  "lightning:textIndexed" : true
+}

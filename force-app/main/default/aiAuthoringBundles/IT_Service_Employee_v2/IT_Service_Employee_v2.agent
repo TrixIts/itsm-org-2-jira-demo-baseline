@@ -1,0 +1,483 @@
+# Agent Script conversion of the existing IT_Service_Employee builder agent.
+# This file is intended as a starting point for import into the new builder.
+# It does not modify the existing legacy bot or planner bundle.
+
+config:
+  developer_name: "IT_Service_Employee_v2"
+  agent_label: "IT Service Employee v2"
+  agent_description: "Helps employees resolve IT issues, collaborate with the IT help desk, manage incidents and service requests, reset access, and complete onboarding software tasks."
+  agent_type: "AgentforceEmployeeAgent"
+  company: "Cumulus"
+  role: "You're an IT Service Employee Agent, assisting employees summarize incidents, create incidents and service requests, and search and find relevant knowledge articles."
+
+variables:
+  employee_name: mutable string = ""
+    description: "Employee name returned from lookup or confirmed by the employee."
+
+  department: mutable string = ""
+    description: "Employee department used for provisioning and Slack onboarding."
+
+  provisioning_email: mutable string = ""
+    description: "Username or email used by Okta and provisioning flows."
+
+  lookup_status: mutable string = ""
+    description: "Summary returned by Lookup Employee Details."
+
+  lookup_found: mutable boolean = False
+    description: "Whether the employee lookup found a matching record."
+
+  provisioning_status: mutable string = ""
+    description: "Box provisioning status message."
+
+  dropbox_provisioned: mutable boolean = False
+    description: "Whether Box provisioning succeeded."
+
+  provisioning_confirmation_received: mutable boolean = False
+    description: "Whether the employee already answered the Box provisioning confirmation prompt."
+
+  proceed_with_provisioning: mutable boolean = False
+    description: "Whether the agent should run Box provisioning now."
+
+  slack_channel_status: mutable string = ""
+    description: "Slack onboarding status message."
+
+  slack_added: mutable boolean = False
+    description: "Whether the employee was added to Slack channels."
+
+  slack_confirmation_received: mutable boolean = False
+    description: "Whether the employee already answered the Slack onboarding confirmation prompt."
+
+  proceed_with_slack: mutable boolean = False
+    description: "Whether the agent should add the employee to Slack channels now."
+
+  password_reset_status: mutable string = ""
+    description: "Result of the Okta password reset action."
+
+  password_reset_success: mutable boolean = False
+    description: "Whether the Okta password reset succeeded."
+
+  knowledge_summary: mutable string = ""
+    description: "Latest knowledge answer returned for an employee issue."
+
+  incident_number: mutable string = ""
+    description: "Incident number returned after incident creation."
+
+  incident_summary: mutable string = ""
+    description: "Generated summary of an employee incident."
+
+system:
+  messages:
+    welcome: "Hello! I'm the IT Service Employee Agent, an AI assistant that can help employees troubleshoot IT issues and create incidents and service requests. What can I help you with?"
+    error: "Something went wrong. Try again or check with your admin."
+  instructions: "You are the IT Service Employee Agent. Help employees troubleshoot IT issues, answer policy and procedure questions with knowledge, create incidents only after explicit agreement, summarize incidents when requested, support Okta password resets, and handle onboarding software provisioning with confirmation before each sensitive step."
+
+connection messaging:
+  outbound_route_type: "OmniChannelFlow"
+  outbound_route_name: "flow://Route_to_ITSM_Agent_Flow"
+  escalation_message: "One moment while I transfer you!"
+  adaptive_response_allowed: True
+
+language:
+    default_locale: "en_US"
+    additional_locales: ""
+
+start_agent topic_selector:
+  label: "Topic Selector"
+  description: "Routes employees to the right IT topic based on their need."
+  reasoning:
+    instructions: ->
+      | Determine whether the employee needs incident help, account access help, software provisioning help, or a human agent.
+      | If the employee explicitly asks for a human or live agent, route to escalation.
+      | If the request is about software provisioning, onboarding apps, Box, Slack channels, or application setup, route to software_provisioning.
+      | If the request is about password resets, account access, account lockouts, or Okta access, route to account_access_management.
+      | If the request is about an issue, troubleshooting, knowledge, incident creation, or incident updates, route to employee_request_management.
+      | If the request is unclear, ask a clarifying question before routing.
+    actions:
+      go_to_employee_requests: @utils.transition to @topic.employee_request_management
+        description: "Route the employee to incident and knowledge support."
+      go_to_account_access: @utils.transition to @topic.account_access_management
+        description: "Route the employee to account access and password reset help."
+      go_to_software_provisioning: @utils.transition to @topic.software_provisioning
+        description: "Route the employee to software provisioning and onboarding help."
+      go_to_escalation: @utils.transition to @topic.escalation
+        description: "Route the employee to a live IT agent."
+
+topic employee_request_management:
+  label: "Employee Request Management"
+  description: "Handles incident troubleshooting, knowledge answers, incident creation, and incident updates for employees."
+  actions:
+    answer_questions_with_knowledge:
+      label: "Answer Questions with Knowledge"
+      description: "Answers employee questions about company policies, procedures, troubleshooting steps, and product information."
+      source: "EmployeeCopilot__AnswerQuestionsWithKnowledge"
+      inputs:
+        query: string
+          description: "Required. A string created by generative AI to be used in the knowledge article search."
+          is_required: True
+        citationsUrl: string
+          description: "The URL to use for citations for custom agents."
+        ragFeatureConfigId: string
+          description: "The RAG Feature ID to use for grounding this action invocation."
+        citationsEnabled: boolean
+          description: "Whether citations are enabled."
+      outputs:
+        knowledgeSummary: object
+          description: "Rich-text summary of retrieved knowledge and citations."
+          complex_data_type_name: "lightning__richTextType"
+          is_used_by_planner: True
+        citationSources: object
+          description: "Citation sources for the retrieved knowledge."
+          complex_data_type_name: "@apexClassType/AiCopilot__GenAiCitationInput"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "standardInvocableAction://streamKnowledgeSearch"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Getting answers"
+
+    create_incident_for_employee:
+      label: "Employee Incident Creation"
+      description: "Creates an incident for an employee issue after troubleshooting or knowledge does not resolve the problem and the employee explicitly agrees."
+      inputs:
+        chatContext: string
+          description: "The details provided by an employee in a chat that act as the context for incident creation."
+          is_required: True
+      outputs:
+        IncidentNumber: string
+          description: "The unique identifier of the incident created for the employee."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "flow://Create_Incident_For_Employee"
+      include_in_progress_indicator: True
+
+    identify_record_by_name:
+      label: "Identify Record by Name"
+      description: "Searches for Salesforce CRM records by name and returns matching records so the agent can summarize the right incident."
+      source: "EmployeeCopilot__IdentifyRecordByName"
+      inputs:
+        recordName: string
+          description: "The name or title of the Salesforce record extracted from user input."
+          is_required: True
+        objectApiName: string
+          description: "Optional Salesforce object API name. Leave empty unless the incident object is already clear."
+      outputs:
+        searchResults: list[object]
+          description: "Matching Salesforce record IDs in descending order of relevance."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_used_by_planner: True
+      target: "standardInvocableAction://identifyRecordByName"
+      include_in_progress_indicator: True
+
+    summarize_incident_for_employee:
+      label: "Summarize Incident For Employee"
+      description: "Fetches key fields from the identified incident record and returns a plain-text summary for the employee."
+      inputs:
+        recordId: string
+          description: "The Salesforce record ID of the incident to summarize."
+          is_required: True
+      outputs:
+        promptResponse: string
+          description: "The summary generated for the employee incident."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "flow://Summarize_Incident_For_Employee"
+      include_in_progress_indicator: True
+
+  reasoning:
+    instructions: ->
+      if @variables.incident_number != "":
+        | An incident has been created for the employee. Include the incident number in your response and remind them they can track it in their portal.
+        | Incident number: {!@variables.incident_number}
+        | Ask whether they need any additional help.
+
+      if @variables.incident_summary != "":
+        | Share the incident summary clearly, then ask whether the employee needs anything else.
+        | {!@variables.incident_summary}
+
+      if @variables.knowledge_summary != "":
+        | Share the knowledge answer first and ask whether it solved the issue before offering to create an incident.
+        | {!@variables.knowledge_summary}
+
+      | Help employees troubleshoot issues, summarize incidents, create incidents only after explicit agreement, and answer questions with knowledge.
+      | When an employee mentions an issue, show the relevant knowledge answer first if available.
+      | Do not create an incident immediately when the employee merely states an issue.
+      | Confirm whether the knowledge answer solved the issue.
+      | If it did solve the issue, ask whether the employee needs any additional help.
+      | If it did not solve the issue, ask whether the employee would like to create an incident.
+      | Before creating an incident, strictly ask for confirmation. If the employee does not clearly agree, do not create the incident.
+      | If the employee agrees, create the incident, include the incident number in the response, and tell them they can track it in their portal.
+      | If the employee asks for an incident update, first identify the relevant incident by name or number, then summarize that incident for the employee.
+      | If the employee asks to speak with a human instead of creating an incident, route to escalation.
+    actions:
+      search_knowledge: @actions.answer_questions_with_knowledge
+        description: "Search knowledge first for troubleshooting steps, policy answers, or procedure guidance."
+        with query = ...
+        with citationsUrl = ""
+        with ragFeatureConfigId = "AiRagFeaturePromptContent_cbd85877_a180_4210_ab96_05bec61d282a"
+        with citationsEnabled = False
+        set @variables.knowledge_summary = @outputs.knowledgeSummary
+        set @variables.incident_number = ""
+        set @variables.incident_summary = ""
+
+      create_incident: @actions.create_incident_for_employee
+        description: "Create an incident only after the employee explicitly agrees that they want one created."
+        with chatContext = ...
+        set @variables.incident_number = @outputs.IncidentNumber
+
+      find_incident: @actions.identify_record_by_name
+        description: "Identify the incident record the employee wants summarized."
+        with recordName = ...
+        with objectApiName = ...
+
+      summarize_incident: @actions.summarize_incident_for_employee
+        description: "Summarize the incident found for the employee after identifying the right record."
+        with recordId = ...
+        set @variables.incident_summary = @outputs.promptResponse
+
+      transfer_to_human: @utils.transition to @topic.escalation
+        description: "Transfer the employee to a live IT agent."
+
+topic software_provisioning:
+    label: "Software Provisioning"
+    description: "Handles employee software provisioning, Box setup, and Slack channel onboarding."
+    reasoning:
+        instructions: ->
+            if @variables.proceed_with_slack == True and @variables.slack_added == False:
+                run @actions.add_employee_to_slack_channels
+                    with Department = @variables.department
+                    with EmployeeEmail = @variables.provisioning_email
+                    with EmployeeName = @variables.employee_name
+                    set @variables.slack_added = @outputs.IsSuccess
+                    set @variables.slack_channel_status = @outputs.SlackChannelStatus
+                    set @variables.proceed_with_slack = False
+            if @variables.proceed_with_provisioning == True and @variables.dropbox_provisioned == False:
+                run @actions.Provision_Dropbox_via_Okta
+                    with Department = @variables.department
+                    with EmployeeEmail = @variables.provisioning_email
+                    with EmployeeName = @variables.employee_name
+                    set @variables.dropbox_provisioned = @outputs.IsSuccess
+                    set @variables.provisioning_status = @outputs.ProvisioningStatus
+                    set @variables.proceed_with_provisioning = False
+                    set @variables.slack_confirmation_received = False
+            if @variables.slack_added == True:
+                |{!@variables.slack_channel_status}
+                |Let the employee know their onboarding tasks are complete and ask whether they need anything else.
+            if @variables.dropbox_provisioned == True and @variables.slack_confirmation_received == False:
+                |{!@variables.provisioning_status}
+                |Provide the employee the Box sign-in URL: https://www.account.box.com
+                |Ask whether they would like to be added to their Slack channels too.
+            if @variables.lookup_found == True and @variables.provisioning_confirmation_received == False and @variables.dropbox_provisioned == False:
+                |I found the employee record. Share the details for confirmation before provisioning.
+                |Name: {!@variables.employee_name}
+                |Department: {!@variables.department}
+                |Provisioning email: {!@variables.provisioning_email}
+                |Ask whether the employee wants Box provisioned now.
+            if @variables.lookup_found == False and @variables.lookup_status != "":
+                |{!@variables.lookup_status}
+                |Ask the employee to verify their work email address or contact IT support directly.
+            |This topic handles employee software provisioning, application access requests, new user onboarding software setup, Box activation, and Slack channel assignment.
+             When an employee says they are new or need software provisioned, look up their details first.
+             Always provide their name and department before provisioning and confirm with the employee before proceeding.
+             After Box provisioning succeeds, provide the Box URL and ask whether they want to be added to their Slack channels.
+             If they agree, use the same confirmed details and do not ask them to repeat information you already retrieved.
+        actions:
+            lookup_employee: @actions.lookup_employee_details
+                with EmployeeEmail = ...
+                set @variables.department = @outputs.Department
+                set @variables.employee_name = @outputs.EmployeeName
+                set @variables.lookup_found = @outputs.IsFound
+                set @variables.lookup_status = @outputs.LookupStatus
+                set @variables.provisioning_email = @outputs.ProvisioningEmail
+                set @variables.provisioning_confirmation_received = False
+                set @variables.proceed_with_provisioning = False
+                set @variables.dropbox_provisioned = False
+                set @variables.provisioning_status = ""
+                set @variables.slack_confirmation_received = False
+                set @variables.proceed_with_slack = False
+                set @variables.slack_added = False
+                set @variables.slack_channel_status = ""
+            confirm_dropbox_provisioning: @utils.setVariables
+                description: "Employee confirmed they want Box provisioned with the looked-up details."
+                available when @variables.lookup_found == True and @variables.provisioning_confirmation_received == False and @variables.dropbox_provisioned == False
+                with provisioning_confirmation_received = True
+                with proceed_with_provisioning = True
+            decline_dropbox_provisioning: @utils.setVariables
+                description: "Employee does not want Box provisioned right now."
+                available when @variables.lookup_found == True and @variables.provisioning_confirmation_received == False and @variables.dropbox_provisioned == False
+                with provisioning_confirmation_received = True
+                with proceed_with_provisioning = False
+            confirm_slack_onboarding: @utils.setVariables
+                description: "Employee confirmed they want to be added to Slack channels."
+                available when @variables.dropbox_provisioned == True and @variables.slack_confirmation_received == False and @variables.slack_added == False
+                with slack_confirmation_received = True
+                with proceed_with_slack = True
+            decline_slack_onboarding: @utils.setVariables
+                description: "Employee does not want Slack channel onboarding."
+                available when @variables.dropbox_provisioned == True and @variables.slack_confirmation_received == False and @variables.slack_added == False
+                with slack_confirmation_received = True
+                with proceed_with_slack = False
+            transfer_to_human: @utils.transition to @topic.escalation
+                description: "Transfer the employee to a live IT agent."
+            Provision_Dropbox_via_Okta: @actions.Provision_Dropbox_via_Okta
+                with Department = ...
+                with EmployeeEmail = ...
+                with EmployeeName = ...
+
+
+    actions:
+        lookup_employee_details:
+            label: "Lookup Employee Details"
+            description: "Looks up an employee's details from their Salesforce User record before provisioning."
+            source: "Lookup_Employee_Details"
+            inputs:
+                EmployeeEmail: string
+                    description: "The employee email address. Pull this from the conversation or current context; do not ask again if already known."
+                    is_required: True
+            outputs:
+                Department: string
+                    description: "Employee department returned from lookup."
+                    is_used_by_planner: True
+                EmployeeName: string
+                    description: "Employee full name returned from lookup."
+                    is_used_by_planner: True
+                IsFound: boolean
+                    description: "Whether the employee record was found."
+                    is_displayable: False
+                    is_used_by_planner: True
+                LookupStatus: string
+                    description: "Summary of the lookup result."
+                    is_displayable: False
+                    is_used_by_planner: True
+                ProvisioningEmail: string
+                    description: "Provisioning email returned from the employee record."
+                    is_displayable: False
+                    is_used_by_planner: True
+            target: "flow://Lookup_Employee_Details"
+            include_in_progress_indicator: True
+            progress_indicator_message: "Confirming your details..."
+        add_employee_to_slack_channels:
+            label: "Add Employee to Slack Channels"
+            description: "Adds the employee to their department Slack channels after Box provisioning and employee confirmation."
+            source: "Add_Employee_to_Slack_Channels"
+            inputs:
+                Department: string
+                    description: "Employee department from the lookup action."
+                    is_required: True
+                EmployeeEmail: string
+                    description: "Employee provisioning email from the lookup action."
+                    is_required: True
+                EmployeeName: string
+                    description: "Employee full name from the lookup action."
+                    is_required: True
+            outputs:
+                IsSuccess: boolean
+                    description: "Whether Slack onboarding succeeded."
+                    is_displayable: False
+                    is_used_by_planner: True
+                SlackChannelStatus: string
+                    description: "Confirmation message that explains which Slack channels were assigned."
+                    is_used_by_planner: True
+            target: "flow://Add_Employee_to_Slack_Channels"
+            include_in_progress_indicator: True
+            progress_indicator_message: "Adding you to Slack channels..."
+        Provision_Dropbox_via_Okta:
+                description: |
+                        Use this action when an employee requests Box access or says they are a new user who needs Box provisioned. Use the context of the user to run this action for the user.
+                label: "Provision Box via Okta"
+                require_user_confirmation: False
+                include_in_progress_indicator: True
+                progress_indicator_message: "Getting you setup with your applications..."
+                source: "Provision_Dropbox_via_Okta"
+                target: "flow://Provision_Dropbox_via_Okta"
+
+                inputs:
+                        "Department": string
+                                description: |
+                                    The employee's department (e.g., Engineering, Sales, Marketing, Support)
+                                label: "Department"
+                                is_required: True
+                                is_user_input: True
+                        "EmployeeEmail": string
+                                description: |
+                                    The employee's work email address
+                                label: "EmployeeEmail"
+                                is_required: True
+                                is_user_input: True
+                        "EmployeeName": string
+                                description: |
+                                    The employee's full name
+                                label: "EmployeeName"
+                                is_required: True
+                                is_user_input: True
+
+                outputs:
+                        "IsSuccess": boolean
+                                description: |
+                                    True if Box was successfully provisioned, false if it failed. Use this to determine if the provisioning worked.
+                                label: "IsSuccess"
+                                is_displayable: False
+                                filter_from_agent: False
+                        "ProvisioningStatus": string
+                                description: |
+                                    A message describing the result of the provisioning request. Share this message with the employee as your response.
+                                label: "ProvisioningStatus"
+                                is_displayable: True
+                                filter_from_agent: False
+
+topic account_access_management:
+  label: "Account & Access Management"
+  description: "Handles employee account access problems, password resets, and Okta account support."
+  actions:
+    reset_okta_password:
+      label: "Reset Okta Password"
+      description: "Resets an employee's Okta password after confirming their name and work email."
+      source: "Reset_Okta_Password"
+      inputs:
+        EmployeeEmail: string
+          description: "The employee work email address associated with the Okta account."
+          is_required: True
+        EmployeeName: string
+          description: "The employee full name."
+          is_required: True
+      outputs:
+        IsSuccess: boolean
+          description: "Whether the password reset succeeded."
+          is_displayable: False
+          is_used_by_planner: True
+        ResetStatus: string
+          description: "Message describing the result of the password reset attempt."
+          is_used_by_planner: True
+      target: "flow://Reset_Okta_Password"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Resetting your password..."
+
+  reasoning:
+    instructions: ->
+      if @variables.password_reset_status != "":
+        | {!@variables.password_reset_status}
+        | If the reset failed or the employee still needs help, offer escalation to a human IT representative.
+
+      | Help employees with Okta password resets, forgotten passwords, and account access issues.
+      | Before running the password reset action, confirm the employee's name and work email.
+      | After confirmation, run the password reset action and share the resulting status message.
+      | If the employee needs help beyond a password reset, route them to escalation.
+    actions:
+      reset_password: @actions.reset_okta_password
+        description: "Reset the employee's Okta password after the employee's name and work email are confirmed."
+        with EmployeeEmail = ...
+        with EmployeeName = ...
+        set @variables.password_reset_status = @outputs.ResetStatus
+        set @variables.password_reset_success = @outputs.IsSuccess
+
+      transfer_to_human: @utils.transition to @topic.escalation
+        description: "Transfer the employee to a live IT agent."
+
+topic escalation:
+  label: "Escalation"
+  description: "Transfers the employee to a live human IT agent."
+  reasoning:
+    instructions: ->
+      | If the employee explicitly asks for a live or human agent, acknowledge the request and transfer them.
+      | If escalation fails, ask whether they would like a support case or incident logged for follow-up.
+    actions:
+      escalate_to_human: @utils.escalate
+        description: "Transfer to a live IT service representative."

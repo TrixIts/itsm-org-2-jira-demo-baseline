@@ -1,0 +1,35 @@
+{
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "requestStatus" : {
+      "title" : "Request Status",
+      "description" : "The status of the service catalog request creation action, showing whether it was successful or if errors occurred during the process.",
+      "lightning:type" : "lightning__textType",
+      "lightning:isPII" : false,
+      "copilotAction:isDisplayable" : false,
+      "copilotAction:isUsedByPlanner" : true
+    },
+    "createdTicket" : {
+      "title" : "Created Ticket",
+      "description" : "The ticket created by the action. This is only populated if the action was successful.",
+      "lightning:type" : "lightning__recordInfoType",
+      "lightning:isPII" : false,
+      "copilotAction:isDisplayable" : true,
+      "copilotAction:isUsedByPlanner" : true
+    },
+    "requiredAttributes" : {
+      "title" : "Required Attributes",
+      "description" : "A list of required attributes that were not provided or contained invalid data.",
+      "maxItems" : 20,
+      "items" : {
+        "lightning:type" : "lightning__textType"
+      },
+      "lightning:type" : "lightning__listType",
+      "lightning:isPII" : false,
+      "copilotAction:isDisplayable" : false,
+      "copilotAction:isUsedByPlanner" : true
+    }
+  },
+  "lightning:type" : "lightning__objectType",
+  "lightning:textIndexed" : true
+}

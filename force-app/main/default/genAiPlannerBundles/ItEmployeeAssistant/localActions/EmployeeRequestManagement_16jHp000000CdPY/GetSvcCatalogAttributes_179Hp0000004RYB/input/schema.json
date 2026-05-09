@@ -1,0 +1,15 @@
+{
+  "required" : [ "productId" ],
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "productId" : {
+      "title" : "Service Catalog Item ID",
+      "description" : "The ID of the service catalog item record for which to fetch service catalog item attributes",
+      "lightning:type" : "lightning__recordIdType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    }
+  },
+  "lightning:type" : "lightning__objectType",
+  "lightning:textIndexed" : true
+}

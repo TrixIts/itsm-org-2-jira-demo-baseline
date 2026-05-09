@@ -1,0 +1,22 @@
+{
+  "required" : [ "userQuery", "useCase" ],
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "userQuery" : {
+      "title" : "User Query",
+      "description" : "The query by the user that describes the intent and the criteria used to search the list of relevant tickets.",
+      "lightning:type" : "lightning__textType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : true
+    },
+    "useCase" : {
+      "title" : "Use Case",
+      "description" : "The use case for which the user wants to retrieve a list of relevant tickets by description. For example, the user queries by description for follow-up actions like asking ticket status update or summary (ticketStatusUpdate), reopening a record(reopenTicket) and adding comments(addCommentToTicket).",
+      "lightning:type" : "lightning__textType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    }
+  },
+  "lightning:type" : "lightning__objectType",
+  "lightning:textIndexed" : true
+}

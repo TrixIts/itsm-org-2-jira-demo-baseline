@@ -1,0 +1,15 @@
+{
+  "required" : [ "recordId" ],
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "Input:recordId" : {
+      "title" : "Record ID",
+      "description" : "The ID of the record for which a summary is generated for the employee.",
+      "lightning:type" : "lightning__textType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    }
+  },
+  "lightning:type" : "lightning__objectType",
+  "lightning:textIndexed" : true
+}
