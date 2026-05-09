@@ -8,6 +8,8 @@
     <registrationProviderType>ExternalConnector</registrationProviderType>
     <schema>{&quot;icSerializedService&quot;:true,&quot;Service&quot;:{&quot;description&quot;:&quot;Okta connector to provide Agentforce actions&quot;,&quot;topLevelPrimitives&quot;:[],&quot;topLevelObjectDataTypes&quot;:[]}}</schema>
     <schemaType>InterpretedConnectivity</schemaType>
+    <serviceBinding>{&quot;authType&quot;:&quot;apiKey&quot;,&quot;authSubType&quot;:null,&quot;usingExistingNamedCredential&quot;:false}</serviceBinding>
+    <serviceDescriptor>{&quot;agentActionEnabled&quot;:false,&quot;serviceType&quot;:&quot;CONNECTION&quot;,&quot;connectorName&quot;:&quot;Okta&quot;}</serviceDescriptor>
     <status>Complete</status>
     <systemVersion>8</systemVersion>
 </ExternalServiceRegistration>

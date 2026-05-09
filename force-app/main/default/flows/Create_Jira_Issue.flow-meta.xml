@@ -283,7 +283,7 @@ Severity option id: </stringValue>
             <targetReference>Build_Jira_Description</targetReference>
         </connector>
     </start>
-    <status>Active</status>
+    <status>Draft</status>
     <variables>
         <name>inp_Channel</name>
         <dataType>String</dataType>
@@ -306,14 +306,14 @@ Severity option id: </stringValue>
         <isOutput>false</isOutput>
     </variables>
     <variables>
-        <name>inp_JiraReporterId</name>
+        <name>inp_JiraImpactOptionId</name>
         <dataType>String</dataType>
         <isCollection>false</isCollection>
         <isInput>true</isInput>
         <isOutput>false</isOutput>
     </variables>
     <variables>
-        <name>inp_JiraImpactOptionId</name>
+        <name>inp_JiraReporterId</name>
         <dataType>String</dataType>
         <isCollection>false</isCollection>
         <isInput>true</isInput>

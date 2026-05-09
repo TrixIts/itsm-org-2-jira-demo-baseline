@@ -140,7 +140,7 @@
             <targetReference>Get_Issues</targetReference>
         </connector>
     </start>
-    <status>Active</status>
+    <status>Draft</status>
     <variables>
         <name>out_IsSuccess</name>
         <dataType>Boolean</dataType>

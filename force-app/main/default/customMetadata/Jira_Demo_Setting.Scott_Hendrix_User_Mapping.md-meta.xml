@@ -1,21 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata">
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
     <label>Scott Hendrix User Mapping</label>
     <protected>false</protected>
     <values>
-        <field>SettingType__c</field>
-        <value xsi:type="xsd:string" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">UserMapping</value>
+        <field>AuxValue__c</field>
+        <value xsi:type="xsd:string">Scott Hendrix</value>
     </values>
     <values>
         <field>SettingKey__c</field>
-        <value xsi:type="xsd:string" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">scott.hendrix@itsf.demo</value>
+        <value xsi:type="xsd:string">scott.hendrix@itsf.demo</value>
+    </values>
+    <values>
+        <field>SettingType__c</field>
+        <value xsi:type="xsd:string">UserMapping</value>
     </values>
     <values>
         <field>SettingValue__c</field>
-        <value xsi:type="xsd:string" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">712020:b1cc3b88-5bd2-474b-ad7d-c4a5a2569f5a</value>
-    </values>
-    <values>
-        <field>AuxValue__c</field>
-        <value xsi:type="xsd:string" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">Scott Hendrix</value>
+        <value xsi:type="xsd:string">712020:b1cc3b88-5bd2-474b-ad7d-c4a5a2569f5a</value>
     </values>
 </CustomMetadata>

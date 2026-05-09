@@ -59,6 +59,16 @@ variables:
     description: "Whether the employee already answered the software provisioning confirmation prompt."
   proceed_with_provisioning: mutable boolean = False
     description: "Whether the agent should run software provisioning now."
+  provisioning_pending: mutable boolean = False
+    description: "Whether the software provisioning conversation is still in progress and should stay in the provisioning topic."
+  slack_confirmation_received: mutable boolean = False
+    description: "Whether the employee already answered the Slack onboarding confirmation prompt."
+  slack_added: mutable boolean = False
+    description: "Whether Slack onboarding succeeded."
+  slack_channel_status: mutable string = ""
+    description: "Latest Slack onboarding status message."
+  proceed_with_slack: mutable boolean = False
+    description: "Whether the agent should add the employee to Slack channels now."
   password_reset_status: mutable string = ""
     description: "Result of the Okta password reset action."
   password_reset_success: mutable boolean = False
@@ -79,9 +89,9 @@ system:
   instructions: "You are the IT Employee Assistant for internal employees. Keep responses concise, accurate, and action-oriented. Use knowledge when the employee is mainly asking for troubleshooting or guidance, but do not force knowledge-first behavior when the employee clearly wants an issue logged immediately. If the employee explicitly asks to create, log, open, or submit a ticket or incident, or if the issue is clearly urgent, high-impact, security-sensitive, or blocking work, prefer incident creation over additional troubleshooting. When both Jira and Salesforce Incident are involved, treat Jira as the operational source of truth and Salesforce Incident as internal shadow tracking and employee context. Never reopen a ticket or add a comment without explicit employee confirmation. If a request is about an existing incident, service request, case, or Jira issue, handle it in ticket follow-up instead of creating a new issue."
 
 knowledge:
-  rag_feature_config_id: ""
-  citations_enabled: False
-  citations_url: ""
+    rag_feature_config_id: "ARFPC_1JDHp000000sY41OAE"
+    citations_enabled: False
+    citations_url: ""
 
 language:
   default_locale: "en_US"
@@ -95,20 +105,26 @@ start_agent topic_router:
       if @variables.password_reset_pending == True and @variables.password_reset_status == "":
         transition to @topic.account_access_management
 
+      if @variables.provisioning_pending == True:
+        transition to @topic.software_provisioning
+
       | Route the employee to the best matching topic.
       | Prefer ticket follow-up when the employee is asking about an existing incident, case, or service request.
       | Prefer policy query when the employee is asking about company policy, benefits, leave, reimbursements, entitlements, or guidelines.
-      | Prefer account access management when the employee asks for an Okta password reset, forgotten password help, account lockout help, or account access recovery.
+      | Prefer account access management when the employee asks for an Okta password reset, forgotten password help, account lockout help, or account access recovery. Okta password reset requests must not route to software provisioning.
       | If the recent conversation is already about an Okta password reset and the latest employee message provides a name, email address, confirmation, or requested reset detail, route to account access management.
       | Never answer that an Okta password reset is processing from the router. The account access management topic must handle any password reset follow-up.
-      | Prefer software provisioning when the employee asks for onboarding app setup, Box access provisioning, or software provisioning through Okta.
+      | If the employee explicitly asks to create, log, open, submit, or file a new ticket, incident, Jira issue, or service request, route to the matching domain topic so shared service request intake can create the operational records.
+      | Prefer software provisioning only when the employee is asking for direct onboarding app setup, Box access provisioning, or software provisioning through Okta and is not asking to create or log a ticket first.
+      | If software provisioning is pending and the latest employee message provides provisioning confirmation, Slack confirmation, a provisioning email, or provisioning details, route to software provisioning.
+      | If software provisioning is pending but the latest employee message asks for an Okta password reset or account recovery, route to account access management instead.
       | Prefer escalation when the employee explicitly asks for human help or the request clearly needs human intervention.
       | Use the domain topics for new IT issues, access requests, infrastructure requests, hardware questions, and operational help.
     actions:
-      go_to_software_provisioning: @utils.transition to @topic.software_provisioning
-        description: "Route onboarding software provisioning and Box setup."
       go_to_account_access_management: @utils.transition to @topic.account_access_management
         description: "Route Okta password resets, forgotten password help, and account access recovery."
+      go_to_software_provisioning: @utils.transition to @topic.software_provisioning
+        description: "Route onboarding software provisioning and Box setup, but not Okta password reset requests."
       go_to_software_domain: @utils.transition to @topic.software_domain
         description: "Route software issues, software installs, app access, licenses, and business application troubleshooting."
       go_to_cloud_infrastructure_domain: @utils.transition to @topic.cloud_infrastructure_domain
@@ -139,7 +155,110 @@ start_agent topic_router:
         description: "Route unclear requests that need clarification before work can continue."
 
 topic software_provisioning:
-  description: "Handle employee software provisioning and Box setup through Okta."
+  description: "Handle employee software provisioning, Box setup, and Slack channel onboarding."
+  reasoning:
+    instructions: ->
+      if @variables.provisioning_pending == False and @variables.provisioning_status == "":
+        set @variables.provisioning_pending = True
+
+      if @variables.proceed_with_slack == True and @variables.slack_added == False:
+        run @actions.add_employee_to_slack_channels
+          with Department = @variables.department
+          with EmployeeEmail = @variables.provisioning_email
+          with EmployeeName = @variables.employee_name
+          set @variables.slack_added = @outputs.IsSuccess
+          set @variables.slack_channel_status = @outputs.SlackChannelStatus
+          set @variables.proceed_with_slack = False
+
+      if @variables.proceed_with_provisioning == True and @variables.box_provisioned == False:
+        run @actions.provision_box_via_okta
+          with Department = @variables.department
+          with EmployeeEmail = @variables.provisioning_email
+          with EmployeeName = @variables.employee_name
+          set @variables.box_provisioned = @outputs.IsSuccess
+          set @variables.provisioning_status = @outputs.ProvisioningStatus
+          set @variables.proceed_with_provisioning = False
+          set @variables.slack_confirmation_received = False
+          set @variables.provisioning_pending = True
+
+      if @variables.slack_added == True:
+        | {!@variables.slack_channel_status}
+        | Let the employee know their onboarding tasks are complete and ask whether they need anything else.
+        set @variables.provisioning_pending = False
+
+      if @variables.box_provisioned == True and @variables.slack_confirmation_received == False:
+        | {!@variables.provisioning_status}
+        | Provide the employee the Box sign-in URL: https://www.account.box.com
+        | Ask whether they would like to be added to their Slack channels too.
+
+      if @variables.lookup_found == True and @variables.provisioning_confirmation_received == False and @variables.box_provisioned == False:
+        | I found the employee record. Share the details for confirmation before provisioning.
+        | Name: {!@variables.employee_name}
+        | Department: {!@variables.department}
+        | Provisioning email: {!@variables.provisioning_email}
+        | Ask whether the employee wants Box provisioned now.
+
+      if @variables.lookup_found == False and @variables.lookup_status != "":
+        | {!@variables.lookup_status}
+        | Ask the employee to verify their work email address or contact IT support directly.
+
+      | This topic handles employee software provisioning, application access requests, new user onboarding software setup, Box activation, and Slack channel assignment.
+      | If the employee switches to an Okta password reset, forgotten password, lockout, or account recovery request, use {!@actions.go_to_account_access_management} instead of continuing provisioning.
+      | When an employee says they are new or need software provisioned, look up their details first.
+      | Always provide their name and department before provisioning and confirm with the employee before proceeding.
+      | After Box provisioning succeeds, provide the Box URL and ask whether they want to be added to their Slack channels.
+      | If they agree, use the same confirmed details and do not ask them to repeat information you already retrieved.
+    actions:
+      go_to_account_access_management: @utils.transition to @topic.account_access_management
+        description: "Move to Okta password reset or account access recovery when the employee changes from provisioning to account access."
+      lookup_employee: @actions.lookup_employee_details
+        description: "Look up employee details before confirming software provisioning."
+        with EmployeeEmail = ...
+        set @variables.department = @outputs.Department
+        set @variables.employee_name = @outputs.EmployeeName
+        set @variables.lookup_found = @outputs.IsFound
+        set @variables.lookup_status = @outputs.LookupStatus
+        set @variables.provisioning_email = @outputs.ProvisioningEmail
+        set @variables.provisioning_confirmation_received = False
+        set @variables.proceed_with_provisioning = False
+        set @variables.box_provisioned = False
+        set @variables.provisioning_status = ""
+        set @variables.slack_confirmation_received = False
+        set @variables.proceed_with_slack = False
+        set @variables.slack_added = False
+        set @variables.slack_channel_status = ""
+        set @variables.provisioning_pending = True
+      confirm_dropbox_provisioning: @utils.setVariables
+        description: "Employee confirmed they want Box provisioned with the looked-up details. Use this for short affirmative replies such as yes, confirm, please do, or go ahead after the Box provisioning confirmation prompt."
+        available when @variables.lookup_found == True and @variables.provisioning_confirmation_received == False and @variables.box_provisioned == False
+        with provisioning_confirmation_received = True
+        with proceed_with_provisioning = True
+        with provisioning_pending = True
+      decline_dropbox_provisioning: @utils.setVariables
+        description: "Employee declined Box provisioning after the confirmation prompt."
+        available when @variables.lookup_found == True and @variables.provisioning_confirmation_received == False and @variables.box_provisioned == False
+        with provisioning_confirmation_received = True
+        with proceed_with_provisioning = False
+        with provisioning_pending = False
+      confirm_slack_onboarding: @utils.setVariables
+        description: "Employee confirmed they want to be added to Slack channels. Use this for short affirmative replies after the Slack onboarding prompt."
+        available when @variables.box_provisioned == True and @variables.slack_confirmation_received == False and @variables.slack_added == False
+        with slack_confirmation_received = True
+        with proceed_with_slack = True
+        with provisioning_pending = True
+      decline_slack_onboarding: @utils.setVariables
+        description: "Employee declined Slack channel onboarding after the Slack confirmation prompt."
+        available when @variables.box_provisioned == True and @variables.slack_confirmation_received == False and @variables.slack_added == False
+        with slack_confirmation_received = True
+        with proceed_with_slack = False
+        with provisioning_pending = False
+      go_to_shared_intake: @utils.transition to @topic.shared_service_request_intake
+        description: "Move to standard service-request intake when the provisioning request should be logged instead of fulfilled directly."
+      go_to_escalation: @utils.transition to @topic.escalation
+        description: "Move to escalation when the employee wants human help."
+      back_to_router: @utils.transition to @topic.topic_router
+        description: "Return to the main router when the conversation changes topics."
+
   actions:
     lookup_employee_details:
       description: "Look up an employee's details from their Salesforce User record before provisioning."
@@ -169,6 +288,31 @@ topic software_provisioning:
       target: "flow://Lookup_Employee_Details"
       include_in_progress_indicator: True
       progress_indicator_message: "Confirming your details..."
+
+    add_employee_to_slack_channels:
+      description: "Adds the employee to their department Slack channels after Box provisioning and employee confirmation."
+      inputs:
+        Department: string
+          description: "Employee department from the lookup action."
+          is_required: True
+        EmployeeEmail: string
+          description: "Employee provisioning email from the lookup action."
+          is_required: True
+        EmployeeName: string
+          description: "Employee full name from the lookup action."
+          is_required: True
+      outputs:
+        IsSuccess: boolean
+          description: "Whether Slack onboarding succeeded."
+          is_displayable: False
+          is_used_by_planner: True
+        SlackChannelStatus: string
+          description: "Confirmation message that explains which Slack channels were assigned."
+          is_used_by_planner: True
+      target: "flow://Add_Employee_to_Slack_Channels"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Adding you to Slack channels..."
+
     provision_box_via_okta:
       description: "Provision Box access for an employee through the Okta connector."
       inputs:
@@ -192,92 +336,14 @@ topic software_provisioning:
       target: "flow://Provision_Box_via_Okta"
       include_in_progress_indicator: True
       progress_indicator_message: "Getting your applications set up..."
-  reasoning:
-    instructions: ->
-      if @variables.proceed_with_provisioning == True and @variables.box_provisioned == False:
-        run @actions.provision_box_via_okta
-          with Department = @variables.department
-          with EmployeeEmail = @variables.provisioning_email
-          with EmployeeName = @variables.employee_name
-          set @variables.box_provisioned = @outputs.IsSuccess
-          set @variables.provisioning_status = @outputs.ProvisioningStatus
-          set @variables.proceed_with_provisioning = False
-
-      if @variables.box_provisioned == True:
-        | {!@variables.provisioning_status}
-        | Provide the employee the sign-in URL: https://www.account.box.com
-        | Ask whether they need anything else.
-
-      if @variables.lookup_found == True and @variables.provisioning_confirmation_received == False and @variables.box_provisioned == False:
-        | I found the employee record. Share the details for confirmation before provisioning.
-        | Name: {!@variables.employee_name}
-        | Department: {!@variables.department}
-        | Provisioning email: {!@variables.provisioning_email}
-        | Ask whether the employee wants Box access provisioned now.
-
-      if @variables.lookup_found == False and @variables.lookup_status != "":
-        | {!@variables.lookup_status}
-        | Ask the employee to verify their work email address or contact IT support directly.
-
-      | This topic handles employee software provisioning, onboarding application setup, and Box activation.
-      | When an employee says they are new or need software provisioned, look up their details first.
-      | Always provide their name and department before provisioning and confirm with the employee before proceeding.
-      | After provisioning succeeds, provide the sign-in URL and ask whether they need anything else.
-    actions:
-      lookup_employee: @actions.lookup_employee_details
-        description: "Look up employee details before confirming software provisioning."
-        with EmployeeEmail = ...
-        set @variables.department = @outputs.Department
-        set @variables.employee_name = @outputs.EmployeeName
-        set @variables.lookup_found = @outputs.IsFound
-        set @variables.lookup_status = @outputs.LookupStatus
-        set @variables.provisioning_email = @outputs.ProvisioningEmail
-        set @variables.provisioning_confirmation_received = False
-        set @variables.proceed_with_provisioning = False
-        set @variables.box_provisioned = False
-        set @variables.provisioning_status = ""
-      confirm_software_provisioning: @utils.setVariables
-        description: "Employee confirmed they want the software provisioned with the looked-up details."
-        available when @variables.lookup_found == True and @variables.provisioning_confirmation_received == False and @variables.box_provisioned == False
-        with provisioning_confirmation_received = True
-        with proceed_with_provisioning = True
-      decline_software_provisioning: @utils.setVariables
-        description: "Employee does not want software provisioned right now."
-        available when @variables.lookup_found == True and @variables.provisioning_confirmation_received == False and @variables.box_provisioned == False
-        with provisioning_confirmation_received = True
-        with proceed_with_provisioning = False
-      go_to_shared_intake: @utils.transition to @topic.shared_service_request_intake
-        description: "Move to standard service-request intake when the provisioning request should be logged instead of fulfilled directly."
-      go_to_escalation: @utils.transition to @topic.escalation
-        description: "Move to escalation when the employee wants human help."
-      back_to_router: @utils.transition to @topic.topic_router
-        description: "Return to the main router when the conversation changes topics."
 
 topic account_access_management:
   description: "Handle Okta password resets, forgotten password help, and account access recovery."
-  actions:
-    reset_okta_password:
-      description: "Reset an employee's Okta password after confirming their name and work email."
-      inputs:
-        EmployeeEmail: string
-          description: "The employee work email address associated with the Okta account."
-          is_required: True
-        EmployeeName: string
-          description: "The employee full name."
-          is_required: True
-      outputs:
-        IsSuccess: boolean
-          description: "Whether the password reset succeeded."
-          is_displayable: False
-          is_used_by_planner: True
-        ResetStatus: string
-          description: "Message describing the result of the password reset attempt."
-          is_used_by_planner: True
-      target: "flow://Reset_Okta_Password"
-      include_in_progress_indicator: True
-      progress_indicator_message: "Resetting your password..."
   reasoning:
     instructions: ->
+      if @variables.provisioning_pending == True:
+        set @variables.provisioning_pending = False
+
       if @variables.password_reset_pending == False and @variables.password_reset_status == "":
         set @variables.password_reset_pending = True
 
@@ -316,6 +382,28 @@ topic account_access_management:
         description: "Move to escalation when the employee wants human help."
       back_to_router: @utils.transition to @topic.topic_router
         description: "Return to the main router when the conversation changes topics."
+
+  actions:
+    reset_okta_password:
+      description: "Reset an employee's Okta password after confirming their name and work email."
+      inputs:
+        EmployeeEmail: string
+          description: "The employee work email address associated with the Okta account."
+          is_required: True
+        EmployeeName: string
+          description: "The employee full name."
+          is_required: True
+      outputs:
+        IsSuccess: boolean
+          description: "Whether the password reset succeeded."
+          is_displayable: False
+          is_used_by_planner: True
+        ResetStatus: string
+          description: "Message describing the result of the password reset attempt."
+          is_used_by_planner: True
+      target: "flow://Reset_Okta_Password"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Resetting your password..."
 
 topic software_domain:
   description: "Select the software-management domain and hand off to shared IT intake."
@@ -400,182 +488,6 @@ topic compliance_domain:
 
 topic shared_service_request_intake:
   description: "Shared intake for new IT issues and managed service-request workflows across all IT domains."
-  actions:
-    answer_questions_with_knowledge:
-      description: "Search managed IT knowledge and summarize grounded guidance for the employee's current issue or how-to request."
-      inputs:
-        query: string
-          description: "The employee's natural-language issue description or question."
-          is_required: True
-          is_user_input: True
-        citationsUrl: string
-          description: "Optional citations URL override for custom surfaces."
-        ragFeatureConfigId: string
-          description: "Managed RAG feature configuration for the knowledge-answer action."
-        citationsEnabled: boolean
-          description: "Whether citations should be included in the managed response."
-      outputs:
-        knowledgeSummary: object
-          description: "Grounded knowledge summary for the current request."
-          complex_data_type_name: "lightning__richTextType"
-          is_displayable: False
-          is_used_by_planner: True
-        citationSources: object
-          description: "Citation sources returned by the managed knowledge answer action."
-          complex_data_type_name: "@apexClassType/AiCopilot__GenAiCitationInput"
-          is_displayable: False
-          is_used_by_planner: True
-      target: "standardInvocableAction://streamKnowledgeSearch"
-      source: "EmployeeCopilot__AnswerQuestionsWithKnowledge"
-    get_eligible_service_catalog_items:
-      description: "Classify the current request into eligible service catalog items for the active IT domain."
-      inputs:
-        queryDescription: string
-          description: "The employee request to classify into service catalog options."
-          is_required: True
-        topicName: string
-          description: "Legacy Builder topic API name for the active domain."
-          is_required: True
-        channelType: string
-          description: "Optional channel type for managed messaging-based experiences."
-        messagingChannelId: string
-          description: "Optional messaging channel identifier used by the legacy managed action."
-      outputs:
-        serviceCtlgItemsList: list[object]
-          description: "Eligible service catalog items returned for the current request."
-          complex_data_type_name: "@apexClassType/svc_emp_intelligence__GetEligSvcCtlgItemsApex"
-          is_displayable: False
-          is_used_by_planner: True
-      target: "standardInvocableAction://getEligSvcCtlgItems"
-      source: "svc_emp_intelligence__GetEligibleServiceCatalogItems"
-    get_svc_catalog_attributes:
-      description: "Load required attributes for a selected service catalog item before a request is created."
-      inputs:
-        productId: id
-          description: "Service catalog item record identifier."
-          is_required: True
-      outputs:
-        svcCatalogItmAttributes: list[object]
-          description: "Service catalog attributes that must be collected for the selected item."
-          complex_data_type_name: "@apexClassType/svc_emp_intelligence__ServiceCatalogItemAttributeApex"
-          is_displayable: False
-          is_used_by_planner: True
-      target: "standardInvocableAction://getSvcCtlgAttributes"
-      source: "svc_emp_intelligence__GetSvcCatalogAttributes"
-    create_service_catalog_request:
-      description: "Create a managed service request after the required service catalog attributes are collected."
-      inputs:
-        productId: id
-          description: "Service catalog item record identifier."
-          is_required: True
-        sciAttributes: list[object]
-          description: "Fully populated service catalog attribute payload for the selected item."
-          complex_data_type_name: "@apexClassType/svc_emp_intelligence__ServiceCatalogItemAttributeDataApex"
-      outputs:
-        requestStatus: string
-          description: "Request-creation status."
-          is_displayable: False
-          is_used_by_planner: True
-        createdTicket: object
-          description: "Created ticket metadata when the request succeeds."
-          complex_data_type_name: "lightning__recordInfoType"
-          is_displayable: True
-          is_used_by_planner: True
-        requiredAttributes: list[string]
-          description: "Any required attributes that were missing or invalid."
-          is_displayable: False
-          is_used_by_planner: True
-      target: "standardInvocableAction://createSvcCatalogReq"
-      source: "svc_emp_intelligence__CreateServiceCatalogRequest"
-    get_product_launch_card:
-      description: "Return the launch URL and display details for a complex service catalog item."
-      inputs:
-        productId: string
-          description: "Selected product or process identifier."
-          is_required: True
-        siteName: string
-          description: "Optional site context for launch-card generation."
-        channelType: string
-          description: "Optional channel type for launch-card generation."
-      outputs:
-        launchUrl: string
-          description: "Launch URL for the complex request."
-          is_displayable: True
-          is_used_by_planner: True
-        productName: string
-          description: "Display name of the complex service item."
-          is_displayable: True
-          is_used_by_planner: True
-        imageUrl: string
-          description: "Image associated with the product launch card."
-          is_displayable: True
-          is_used_by_planner: True
-        productDesc: string
-          description: "Description of the complex service item."
-          is_displayable: True
-          is_used_by_planner: True
-      target: "standardInvocableAction://getDynamicEnhancedLink"
-      source: "sc_enterprise_catalog__GetProductLaunchCard"
-    create_incident_for_employee:
-      description: "Create a new employee IT incident after the employee explicitly agrees to incident creation."
-      inputs:
-        chatContext: string
-          description: "Conversation context used by the managed incident-creation action."
-          is_required: True
-      outputs:
-        IncidentNumber: string
-          description: "Identifier of the created incident."
-          is_displayable: False
-          is_used_by_planner: True
-      target: "standardInvocableAction://createIncidentForRequestor"
-      source: "svc_emp_intelligence__CreateIncidentForEmployee"
-    create_jira_issue:
-      description: "Create a Jira issue directly through Jira REST so Jira remains the operational backend."
-      inputs:
-        jiraSummary: string
-          description: "Short Jira summary for the employee's issue."
-          is_required: True
-        jiraDescription: string
-          description: "Detailed Jira description for the employee's issue."
-          is_required: True
-        jiraPriority: string
-          description: "Jira priority name, such as Low, Medium, High, or Highest."
-        jiraUrgencyOptionId: string
-          description: "Jira urgency option id. Critical=10020, High=10021, Medium=10022, Low=10023."
-        jiraImpactOptionId: string
-          description: "Jira impact option id. Extensive=10000, Significant=10001, Moderate=10002, Minor=10003."
-        jiraSeverityOptionId: string
-          description: "Jira severity option id. Sev-0=10028, Sev-1=10029, Sev-2=10030, Sev-3=10031."
-        requesterEmail: string
-          description: "Requester email when available."
-        channel: string
-          description: "Origin channel for the issue."
-        sourceReference: string
-          description: "Optional source reference for correlation."
-        reporterSalesforceUsername: string
-          description: "Optional Salesforce username override for resolving the Jira reporter account mapping. Leave blank to use the running Salesforce username."
-      outputs:
-        isSuccess: boolean
-          description: "Whether Jira issue creation succeeded."
-          is_displayable: False
-          is_used_by_planner: True
-        message: string
-          description: "Result message returned by the direct Jira create action."
-          is_displayable: False
-          is_used_by_planner: True
-        jiraIssueKey: string
-          description: "Created Jira issue key when the create succeeds."
-          is_displayable: False
-          is_used_by_planner: True
-        jiraIssueId: string
-          description: "Created Jira issue id when the create succeeds."
-          is_displayable: False
-          is_used_by_planner: True
-        jiraIssueUrl: string
-          description: "Browse URL for the created Jira issue when configured."
-          is_displayable: False
-          is_used_by_planner: True
-      target: "apex://JiraCreateIssueAction"
   reasoning:
     instructions: ->
       if @variables.last_jira_create_result != "":
@@ -591,10 +503,14 @@ topic shared_service_request_intake:
 
       | You are handling the {!@variables.current_domain} domain.
       | Scope reminder: {!@variables.current_scope_hint}
+      | For demo scenarios, when an employee asks to create, log, open, submit, or file a new ticket, service request, Jira issue, or incident, create both records: Jira first, then Salesforce Incident second.
+      | Treat Jira as mandatory for every new operational IT issue that should be logged. Only skip Jira when the employee is only asking a how-to question, checking an existing ticket, asking about policy, or using a direct fulfillment path that does not need a ticket.
+      | After Jira is created successfully, use the same issue context to create the Salesforce Incident shadow record in the same turn whenever enough detail is available.
       | Start with knowledge for troubleshooting, how-to guidance, and informational questions when the employee is mainly asking for help or diagnostics.
       | If the employee explicitly asks to create, log, open, or submit a Jira ticket or incident now, do not force a knowledge-first step.
-      | When the employee clearly wants a new Jira-backed issue created now, call {!@actions.create_jira_issue_now} as the first operational action in the turn.
+      | When the employee clearly wants a new Jira-backed issue created now, call {!@actions.create_jira_issue_now} as the first operational action in the turn, then call {!@actions.create_incident_now} after Jira succeeds.
       | Do not call {!@actions.search_knowledge}, {!@actions.search_catalog}, {!@actions.create_service_request}, {!@actions.create_incident_now}, or {!@actions.create_incident_from_saved_context} before {!@actions.create_jira_issue_now} in that same turn.
+      | Do not stop after Jira creation during demo-style create/log requests; create the Salesforce Incident as the second record unless required details are missing.
       | If the issue is clearly urgent, high-impact, security-sensitive, device-blocking, or preventing the employee from working, prefer incident creation over extra troubleshooting.
       | If knowledge resolves the issue, confirm the employee is done and do not create a new incident or request unless they still want one logged.
       | If knowledge does not resolve the issue, use {!@actions.get_eligible_service_catalog_items} to identify whether this is a catalog-backed request.
@@ -602,13 +518,13 @@ topic shared_service_request_intake:
       | For SIMPLE catalog items, use {!@actions.get_svc_catalog_attributes}, collect all required values except subject and reportedBy, and then use {!@actions.create_service_catalog_request}.
       | For COMPLEX catalog items, use {!@actions.get_product_launch_card} and share the returned launch URL instead of manually collecting fields.
       | For operational incidents that should be tracked in Jira, use {!@actions.create_jira_issue_now} first so Jira remains the primary backend.
-      | If internal Salesforce tracking is also useful after Jira issue creation, then use {!@actions.create_incident_now} or {!@actions.create_incident_from_saved_context} to create the Salesforce Incident shadow record.
+      | After Jira issue creation, create the Salesforce Incident shadow record with {!@actions.create_incident_now} when the current turn has the issue context, or {!@actions.create_incident_from_saved_context} when the context was stored from an earlier turn.
       | When using the direct Jira create action, provide a concise Jira summary, a fuller description, and the best available priority and Impact/Urgency/Severity option ids. Use Medium defaults when the user does not express stronger urgency.
       | If you expect a later confirmation turn, call {!@actions.store_incident_context} to save a concise summary of the underlying issue, affected device or system, and key symptoms before asking whether an incident should be created.
       | Use {!@actions.create_incident_now} when the employee is already asking to log the issue now and the current utterance contains enough detail to create the incident directly.
       | Use {!@actions.create_incident_from_saved_context} when the employee confirms incident creation after prior discussion and the current utterance is mostly just confirmation text.
-      | After the Jira create action succeeds, tell the employee that the Jira-backed issue was created.
-      | After the Salesforce incident action succeeds, include the returned incident number and explain that it is the internal Salesforce tracking record when both systems are involved.
+      | After the Jira create action succeeds, tell the employee that the Jira-backed issue was created and include the Jira key if available.
+      | After the Salesforce incident action succeeds, include the returned incident number and explain that it is the internal Salesforce tracking record for the same issue.
       | If the employee is really asking about an existing ticket, route to ticket follow-up instead of staying in new-request intake.
       | If the employee is asking about currently assigned hardware, acknowledge that direct assigned-asset lookup is not yet wired in this first migration cut and help them with the surrounding hardware request or route them to human support.
     actions:
@@ -674,216 +590,191 @@ topic shared_service_request_intake:
       back_to_router: @utils.transition to @topic.topic_router
         description: "Return to the main router when the conversation changes topics."
 
-topic ticket_followup:
-  description: "Handle follow-up on existing Jira issues, incidents, service requests, and cases."
   actions:
-    identify_record_by_name:
-      description: "Resolve a ticket number or record name into Salesforce ticket records before follow-up actions run."
+    answer_questions_with_knowledge:
+      description: "Search managed IT knowledge and summarize grounded guidance for the employee's current issue or how-to request."
       inputs:
-        recordName: string
-          description: "Ticket number or record name provided by the employee."
+        query: string
+          description: "The employee's natural-language issue description or question."
           is_required: True
           is_user_input: True
-        objectApiName: string
-          description: "Optional object API name if the ticket object is already known."
+        citationsUrl: string
+          description: "Optional citations URL override for custom surfaces."
+        ragFeatureConfigId: string
+          description: "Managed RAG feature configuration for the knowledge-answer action."
+        citationsEnabled: boolean
+          description: "Whether citations should be included in the managed response."
       outputs:
-        searchResults: list[object]
-          description: "Matching record candidates ranked by relevance."
+        knowledgeSummary: object
+          description: "Grounded knowledge summary for the current request."
+          complex_data_type_name: "lightning__richTextType"
+          is_displayable: False
+          is_used_by_planner: True
+        citationSources: object
+          description: "Citation sources returned by the managed knowledge answer action."
+          complex_data_type_name: "@apexClassType/AiCopilot__GenAiCitationInput"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "standardInvocableAction://streamKnowledgeSearch"
+      source: "EmployeeCopilot__AnswerQuestionsWithKnowledge"
+
+    get_eligible_service_catalog_items:
+      description: "Classify the current request into eligible service catalog items for the active IT domain."
+      inputs:
+        queryDescription: string
+          description: "The employee request to classify into service catalog options."
+          is_required: True
+        topicName: string
+          description: "Legacy Builder topic API name for the active domain."
+          is_required: True
+        channelType: string
+          description: "Optional channel type for managed messaging-based experiences."
+        messagingChannelId: string
+          description: "Optional messaging channel identifier used by the legacy managed action."
+      outputs:
+        serviceCtlgItemsList: list[object]
+          description: "Eligible service catalog items returned for the current request."
+          complex_data_type_name: "@apexClassType/svc_emp_intelligence__GetEligSvcCtlgItemsApex"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "standardInvocableAction://getEligSvcCtlgItems"
+      source: "svc_emp_intelligence__GetEligibleServiceCatalogItems"
+
+    get_svc_catalog_attributes:
+      description: "Load required attributes for a selected service catalog item before a request is created."
+      inputs:
+        productId: id
+          description: "Service catalog item record identifier."
+          is_required: True
+      outputs:
+        svcCatalogItmAttributes: list[object]
+          description: "Service catalog attributes that must be collected for the selected item."
+          complex_data_type_name: "@apexClassType/svc_emp_intelligence__ServiceCatalogItemAttributeApex"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "standardInvocableAction://getSvcCtlgAttributes"
+      source: "svc_emp_intelligence__GetSvcCatalogAttributes"
+
+    create_service_catalog_request:
+      description: "Create a managed service request after the required service catalog attributes are collected."
+      inputs:
+        productId: id
+          description: "Service catalog item record identifier."
+          is_required: True
+        sciAttributes: list[object]
+          description: "Fully populated service catalog attribute payload for the selected item."
+          complex_data_type_name: "@apexClassType/svc_emp_intelligence__ServiceCatalogItemAttributeDataApex"
+      outputs:
+        requestStatus: string
+          description: "Request-creation status."
+          is_displayable: False
+          is_used_by_planner: True
+        createdTicket: object
+          description: "Created ticket metadata when the request succeeds."
           complex_data_type_name: "lightning__recordInfoType"
           is_displayable: True
           is_used_by_planner: True
-      target: "standardInvocableAction://identifyRecordByName"
-      source: "EmployeeCopilot__IdentifyRecordByName"
-    get_relevant_tickets_by_description:
-      description: "Search for the employee's relevant tickets when they describe a problem instead of naming a specific record."
-      inputs:
-        userQuery: string
-          description: "Employee description used to find matching tickets."
-          is_required: True
-          is_user_input: True
-        useCase: string
-          description: "Use case that shapes the ticket search behavior."
-          is_required: True
-      outputs:
-        relevantTickets: string
-          description: "Formatted relevant ticket results."
+        requiredAttributes: list[string]
+          description: "Any required attributes that were missing or invalid."
           is_displayable: False
           is_used_by_planner: True
-      target: "flow://svc_emp_intelligence__GetTcktsByDesc"
-      source: "svc_emp_intelligence__GetRelevantTicketsByDescription"
-    summarize_ticket_for_employee:
-      description: "Summarize the current state of a selected ticket for the employee."
+      target: "standardInvocableAction://createSvcCatalogReq"
+      source: "svc_emp_intelligence__CreateServiceCatalogRequest"
+
+    get_product_launch_card:
+      description: "Return the launch URL and display details for a complex service catalog item."
       inputs:
-        "Input:recordId": string
-          description: "Record identifier of the selected ticket."
+        productId: string
+          description: "Selected product or process identifier."
+          is_required: True
+        siteName: string
+          description: "Optional site context for launch-card generation."
+        channelType: string
+          description: "Optional channel type for launch-card generation."
+      outputs:
+        launchUrl: string
+          description: "Launch URL for the complex request."
+          is_displayable: True
+          is_used_by_planner: True
+        productName: string
+          description: "Display name of the complex service item."
+          is_displayable: True
+          is_used_by_planner: True
+        imageUrl: string
+          description: "Image associated with the product launch card."
+          is_displayable: True
+          is_used_by_planner: True
+        productDesc: string
+          description: "Description of the complex service item."
+          is_displayable: True
+          is_used_by_planner: True
+      target: "standardInvocableAction://getDynamicEnhancedLink"
+      source: "sc_enterprise_catalog__GetProductLaunchCard"
+
+    create_incident_for_employee:
+      description: "Create a new employee IT incident after the employee explicitly agrees to incident creation."
+      inputs:
+        chatContext: string
+          description: "Conversation context used by the managed incident-creation action."
           is_required: True
       outputs:
-        promptResponse: string
-          description: "Prompt-generated ticket summary."
+        IncidentNumber: string
+          description: "Identifier of the created incident."
           is_displayable: False
           is_used_by_planner: True
-      target: "generatePromptResponse://svc_emp_intelligence__SummarizeRecord"
-      source: "svc_emp_intelligence__SummarizeTicketForEmployee"
-    reopen_ticket:
-      description: "Reopen a selected ticket after the employee explicitly confirms the reopen request."
+      target: "standardInvocableAction://createIncidentForRequestor"
+      source: "svc_emp_intelligence__CreateIncidentForEmployee"
+
+    create_jira_issue:
+      description: "Create a Jira issue directly through Jira REST so Jira remains the operational backend."
       inputs:
-        recordId: object
-          description: "Record identifier of the ticket to reopen."
-          complex_data_type_name: "lightning__recordIdType"
+        jiraSummary: string
+          description: "Short Jira summary for the employee's issue."
           is_required: True
-      outputs:
-        resultSummary: string
-          description: "Result of the reopen action."
-          is_displayable: False
-          is_used_by_planner: True
-      target: "flow://svc_emp_intelligence__ReopenTicket"
-      source: "svc_emp_intelligence__ReopenTicket"
-    add_comment_to_ticket:
-      description: "Add an employee-approved comment to a selected ticket."
-      inputs:
-        recordID: object
-          description: "Record identifier of the ticket to update."
-          complex_data_type_name: "lightning__recordIdType"
+        jiraDescription: string
+          description: "Detailed Jira description for the employee's issue."
           is_required: True
-        commentText: string
-          description: "Exact comment text approved by the employee."
-          is_required: True
-      outputs:
-        outputMessage: string
-          description: "Result of the comment action."
-          is_displayable: False
-          is_used_by_planner: True
-      target: "flow://svc_emp_intelligence__AddCmntToTkt"
-      source: "svc_emp_intelligence__AddCommentToTicket"
-    get_jira_issue_by_key:
-      description: "Read a Jira issue directly by exact Jira key, including recent update context from Jira comments and field history when available."
-      inputs:
-        jiraIssueKey: string
-          description: "Exact Jira issue key."
-          is_required: True
+        jiraPriority: string
+          description: "Jira priority name, such as Low, Medium, High, or Highest."
+        jiraUrgencyOptionId: string
+          description: "Jira urgency option id. Critical=10020, High=10021, Medium=10022, Low=10023."
+        jiraImpactOptionId: string
+          description: "Jira impact option id. Extensive=10000, Significant=10001, Moderate=10002, Minor=10003."
+        jiraSeverityOptionId: string
+          description: "Jira severity option id. Sev-0=10028, Sev-1=10029, Sev-2=10030, Sev-3=10031."
+        requesterEmail: string
+          description: "Requester email when available."
+        channel: string
+          description: "Origin channel for the issue."
+        sourceReference: string
+          description: "Optional source reference for correlation."
+        reporterSalesforceUsername: string
+          description: "Optional Salesforce username override for resolving the Jira reporter account mapping. Leave blank to use the running Salesforce username."
       outputs:
         isSuccess: boolean
-          description: "Whether the Jira issue lookup succeeded."
+          description: "Whether Jira issue creation succeeded."
           is_displayable: False
           is_used_by_planner: True
         message: string
-          description: "Planner-friendly Jira issue summary."
+          description: "Result message returned by the direct Jira create action."
           is_displayable: False
           is_used_by_planner: True
         jiraIssueKey: string
-          description: "Jira issue key returned by the direct lookup."
+          description: "Created Jira issue key when the create succeeds."
           is_displayable: False
           is_used_by_planner: True
         jiraIssueId: string
-          description: "Jira issue id returned by the direct lookup."
+          description: "Created Jira issue id when the create succeeds."
           is_displayable: False
           is_used_by_planner: True
-        jiraSummary: string
-          description: "Jira issue summary returned by the direct lookup."
+        jiraIssueUrl: string
+          description: "Browse URL for the created Jira issue when configured."
           is_displayable: False
           is_used_by_planner: True
-        jiraStatus: string
-          description: "Jira issue status returned by the direct lookup."
-          is_displayable: False
-          is_used_by_planner: True
-        jiraPriority: string
-          description: "Jira issue priority returned by the direct lookup."
-          is_displayable: False
-          is_used_by_planner: True
-        jiraResolution: string
-          description: "Jira resolution returned by the direct lookup when the issue is already resolved or closed."
-          is_displayable: False
-          is_used_by_planner: True
-        isClosed: boolean
-          description: "Whether the Jira issue appears closed or resolved."
-          is_displayable: False
-          is_used_by_planner: True
-        latestUpdateSummary: string
-          description: "Concise latest-update summary derived from the newest Jira comment or field-history event."
-          is_displayable: False
-          is_used_by_planner: True
-        recentCommentsSummary: string
-          description: "Recent Jira comments or internal notes returned by the direct lookup."
-          is_displayable: False
-          is_used_by_planner: True
-        recentHistorySummary: string
-          description: "Recent Jira field-history changes returned by the direct lookup."
-          is_displayable: False
-          is_used_by_planner: True
-      target: "apex://JiraGetIssueByKeyAction"
-    get_my_open_jira_issues:
-      description: "Find the current employee's open Jira issues by mapping Salesforce username to a Jira reporter account id and include the latest Jira update context for each returned issue."
-      inputs:
-        reporterSalesforceUsername: string
-          description: "Optional Salesforce username override for reporter mapping. Leave blank to use the running Salesforce username."
-        maxResults: object
-          description: "Maximum Jira issues to return for the open-issue lookup."
-          complex_data_type_name: "lightning__integerType"
-      outputs:
-        isSuccess: boolean
-          description: "Whether the reporter-based Jira search succeeded."
-          is_displayable: False
-          is_used_by_planner: True
-        message: string
-          description: "Planner-friendly result of the reporter-based Jira search."
-          is_displayable: False
-          is_used_by_planner: True
-        issueCount: object
-          description: "Count of open Jira issues returned for the reporter."
-          complex_data_type_name: "lightning__integerType"
-          is_displayable: False
-          is_used_by_planner: True
-        issuesSummary: string
-          description: "Formatted summary of the reporter's open Jira issues."
-          is_displayable: False
-          is_used_by_planner: True
-        firstJiraIssueKey: string
-          description: "First Jira issue key returned by the reporter-based search."
-          is_displayable: False
-          is_used_by_planner: True
-        firstIssueLatestUpdateSummary: string
-          description: "Latest Jira update summary for the first issue returned by the reporter-based search."
-          is_displayable: False
-          is_used_by_planner: True
-        firstIssuePriority: string
-          description: "Priority of the first Jira issue returned by the reporter-based search."
-          is_displayable: False
-          is_used_by_planner: True
-      target: "apex://JiraGetMyOpenIssuesAction"
-    update_jira_issue:
-      description: "Update a Jira issue directly by exact Jira key or id when the employee wants Jira-backed ticket details changed."
-      inputs:
-        jiraIssueIdOrKey: string
-          description: "Exact Jira issue id or key."
-          is_required: True
-        jiraSummary: string
-          description: "Updated Jira summary when needed."
-        jiraImpactOptionId: string
-          description: "Updated Jira impact option id."
-        jiraUrgencyOptionId: string
-          description: "Updated Jira urgency option id."
-        jiraSeverityOptionId: string
-          description: "Updated Jira severity option id."
-        commentText: string
-          description: "Optional Jira comment text to add after explicit employee confirmation."
-      outputs:
-        isSuccess: boolean
-          description: "Whether the Jira issue update succeeded."
-          is_displayable: False
-          is_used_by_planner: True
-        message: string
-          description: "Result message returned by the direct Jira update action."
-          is_displayable: False
-          is_used_by_planner: True
-        jiraIssueKey: string
-          description: "Jira issue key returned by the update action."
-          is_displayable: False
-          is_used_by_planner: True
-        jiraStatus: string
-          description: "Jira status returned after the update."
-          is_displayable: False
-          is_used_by_planner: True
-      target: "apex://JiraUpdateIssueAction"
+      target: "apex://JiraCreateIssueAction"
+
+topic ticket_followup:
+  description: "Handle follow-up on existing Jira issues, incidents, service requests, and cases."
   reasoning:
     instructions: ->
       if @variables.last_ticket_summary != "":
@@ -999,23 +890,224 @@ topic ticket_followup:
       back_to_router: @utils.transition to @topic.topic_router
         description: "Return to the main router when the conversation changes topics."
 
-topic policy_query:
-  description: "Answer employee questions about company policy, benefits, leave, reimbursements, and guidelines."
   actions:
-    answer_policy_questions:
-      description: "Answer employee questions about company policies by using the managed policy-answer prompt."
+    identify_record_by_name:
+      description: "Resolve a ticket number or record name into Salesforce ticket records before follow-up actions run."
       inputs:
-        "Input:userQuery": string
-          description: "Employee question about company policy or benefits."
+        recordName: string
+          description: "Ticket number or record name provided by the employee."
           is_required: True
+          is_user_input: True
+        objectApiName: string
+          description: "Optional object API name if the ticket object is already known."
       outputs:
-        promptResponse: object
-          description: "Policy answer returned by the managed prompt."
-          complex_data_type_name: "lightning__richTextType"
+        searchResults: list[object]
+          description: "Matching record candidates ranked by relevance."
+          complex_data_type_name: "lightning__recordInfoType"
           is_displayable: True
           is_used_by_planner: True
-      target: "generatePromptResponse://svc_emp_intelligence__AnswerPolicyQuestions"
-      source: "svc_emp_intelligence__AnswerPolicyQuestions"
+      target: "standardInvocableAction://identifyRecordByName"
+      source: "EmployeeCopilot__IdentifyRecordByName"
+
+    get_relevant_tickets_by_description:
+      description: "Search for the employee's relevant tickets when they describe a problem instead of naming a specific record."
+      inputs:
+        userQuery: string
+          description: "Employee description used to find matching tickets."
+          is_required: True
+          is_user_input: True
+        useCase: string
+          description: "Use case that shapes the ticket search behavior."
+          is_required: True
+      outputs:
+        relevantTickets: string
+          description: "Formatted relevant ticket results."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "flow://svc_emp_intelligence__GetTcktsByDesc"
+      source: "svc_emp_intelligence__GetRelevantTicketsByDescription"
+
+    summarize_ticket_for_employee:
+      description: "Summarize the current state of a selected ticket for the employee."
+      inputs:
+        "Input:recordId": string
+          description: "Record identifier of the selected ticket."
+          is_required: True
+      outputs:
+        promptResponse: string
+          description: "Prompt-generated ticket summary."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "generatePromptResponse://svc_emp_intelligence__SummarizeRecord"
+      source: "svc_emp_intelligence__SummarizeTicketForEmployee"
+
+    reopen_ticket:
+      description: "Reopen a selected ticket after the employee explicitly confirms the reopen request."
+      inputs:
+        recordId: object
+          description: "Record identifier of the ticket to reopen."
+          complex_data_type_name: "lightning__recordIdType"
+          is_required: True
+      outputs:
+        resultSummary: string
+          description: "Result of the reopen action."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "flow://svc_emp_intelligence__ReopenTicket"
+      source: "svc_emp_intelligence__ReopenTicket"
+
+    add_comment_to_ticket:
+      description: "Add an employee-approved comment to a selected ticket."
+      inputs:
+        recordID: object
+          description: "Record identifier of the ticket to update."
+          complex_data_type_name: "lightning__recordIdType"
+          is_required: True
+        commentText: string
+          description: "Exact comment text approved by the employee."
+          is_required: True
+      outputs:
+        outputMessage: string
+          description: "Result of the comment action."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "flow://svc_emp_intelligence__AddCmntToTkt"
+      source: "svc_emp_intelligence__AddCommentToTicket"
+
+    get_jira_issue_by_key:
+      description: "Read a Jira issue directly by exact Jira key, including recent update context from Jira comments and field history when available."
+      inputs:
+        jiraIssueKey: string
+          description: "Exact Jira issue key."
+          is_required: True
+      outputs:
+        isSuccess: boolean
+          description: "Whether the Jira issue lookup succeeded."
+          is_displayable: False
+          is_used_by_planner: True
+        message: string
+          description: "Planner-friendly Jira issue summary."
+          is_displayable: False
+          is_used_by_planner: True
+        jiraIssueKey: string
+          description: "Jira issue key returned by the direct lookup."
+          is_displayable: False
+          is_used_by_planner: True
+        jiraIssueId: string
+          description: "Jira issue id returned by the direct lookup."
+          is_displayable: False
+          is_used_by_planner: True
+        jiraSummary: string
+          description: "Jira issue summary returned by the direct lookup."
+          is_displayable: False
+          is_used_by_planner: True
+        jiraStatus: string
+          description: "Jira issue status returned by the direct lookup."
+          is_displayable: False
+          is_used_by_planner: True
+        jiraPriority: string
+          description: "Jira issue priority returned by the direct lookup."
+          is_displayable: False
+          is_used_by_planner: True
+        jiraResolution: string
+          description: "Jira resolution returned by the direct lookup when the issue is already resolved or closed."
+          is_displayable: False
+          is_used_by_planner: True
+        isClosed: boolean
+          description: "Whether the Jira issue appears closed or resolved."
+          is_displayable: False
+          is_used_by_planner: True
+        latestUpdateSummary: string
+          description: "Concise latest-update summary derived from the newest Jira comment or field-history event."
+          is_displayable: False
+          is_used_by_planner: True
+        recentCommentsSummary: string
+          description: "Recent Jira comments or internal notes returned by the direct lookup."
+          is_displayable: False
+          is_used_by_planner: True
+        recentHistorySummary: string
+          description: "Recent Jira field-history changes returned by the direct lookup."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "apex://JiraGetIssueByKeyAction"
+
+    get_my_open_jira_issues:
+      description: "Find the current employee's open Jira issues by mapping Salesforce username to a Jira reporter account id and include the latest Jira update context for each returned issue."
+      inputs:
+        reporterSalesforceUsername: string
+          description: "Optional Salesforce username override for reporter mapping. Leave blank to use the running Salesforce username."
+        maxResults: object
+          description: "Maximum Jira issues to return for the open-issue lookup."
+          complex_data_type_name: "lightning__integerType"
+      outputs:
+        isSuccess: boolean
+          description: "Whether the reporter-based Jira search succeeded."
+          is_displayable: False
+          is_used_by_planner: True
+        message: string
+          description: "Planner-friendly result of the reporter-based Jira search."
+          is_displayable: False
+          is_used_by_planner: True
+        issueCount: object
+          description: "Count of open Jira issues returned for the reporter."
+          complex_data_type_name: "lightning__integerType"
+          is_displayable: False
+          is_used_by_planner: True
+        issuesSummary: string
+          description: "Formatted summary of the reporter's open Jira issues."
+          is_displayable: False
+          is_used_by_planner: True
+        firstJiraIssueKey: string
+          description: "First Jira issue key returned by the reporter-based search."
+          is_displayable: False
+          is_used_by_planner: True
+        firstIssueLatestUpdateSummary: string
+          description: "Latest Jira update summary for the first issue returned by the reporter-based search."
+          is_displayable: False
+          is_used_by_planner: True
+        firstIssuePriority: string
+          description: "Priority of the first Jira issue returned by the reporter-based search."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "apex://JiraGetMyOpenIssuesAction"
+
+    update_jira_issue:
+      description: "Update a Jira issue directly by exact Jira key or id when the employee wants Jira-backed ticket details changed."
+      inputs:
+        jiraIssueIdOrKey: string
+          description: "Exact Jira issue id or key."
+          is_required: True
+        jiraSummary: string
+          description: "Updated Jira summary when needed."
+        jiraImpactOptionId: string
+          description: "Updated Jira impact option id."
+        jiraUrgencyOptionId: string
+          description: "Updated Jira urgency option id."
+        jiraSeverityOptionId: string
+          description: "Updated Jira severity option id."
+        commentText: string
+          description: "Optional Jira comment text to add after explicit employee confirmation."
+      outputs:
+        isSuccess: boolean
+          description: "Whether the Jira issue update succeeded."
+          is_displayable: False
+          is_used_by_planner: True
+        message: string
+          description: "Result message returned by the direct Jira update action."
+          is_displayable: False
+          is_used_by_planner: True
+        jiraIssueKey: string
+          description: "Jira issue key returned by the update action."
+          is_displayable: False
+          is_used_by_planner: True
+        jiraStatus: string
+          description: "Jira status returned after the update."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "apex://JiraUpdateIssueAction"
+
+topic policy_query:
+  description: "Answer employee questions about company policy, benefits, leave, reimbursements, and guidelines."
   reasoning:
     instructions: ->
       if @variables.policy_answer != "":
@@ -1034,6 +1126,22 @@ topic policy_query:
         description: "Move to escalation when the employee needs human follow-up."
       back_to_router: @utils.transition to @topic.topic_router
         description: "Return to the main router when the conversation changes topics."
+
+  actions:
+    answer_policy_questions:
+      description: "Answer employee questions about company policies by using the managed policy-answer prompt."
+      inputs:
+        "Input:userQuery": string
+          description: "Employee question about company policy or benefits."
+          is_required: True
+      outputs:
+        promptResponse: object
+          description: "Policy answer returned by the managed prompt."
+          complex_data_type_name: "lightning__richTextType"
+          is_displayable: True
+          is_used_by_planner: True
+      target: "generatePromptResponse://svc_emp_intelligence__AnswerPolicyQuestions"
+      source: "svc_emp_intelligence__AnswerPolicyQuestions"
 
 topic escalation:
   description: "Handle explicit requests for human assistance and guide employees to the live-help path."
@@ -1066,3 +1174,6 @@ topic ambiguous_question:
       Ask the employee for one or two specific clarifying details.
       Encourage them to focus on the single most important issue first.
       Do not guess which ticket, policy, or request they mean when the intent is still ambiguous.
+
+connection slack:
+    empty

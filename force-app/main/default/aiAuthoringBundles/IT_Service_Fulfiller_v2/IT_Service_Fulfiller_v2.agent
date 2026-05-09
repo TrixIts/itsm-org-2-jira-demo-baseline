@@ -56,14 +56,9 @@ system:
 language:
   default_locale: "en_US"
 
-knowledge:
-  rag_feature_config_id: ""
-  citations_enabled: False
-  citations_url: ""
-
-start_agent subagent_selector:
-  label: "Subagent Selector"
-  description: "Routes IT service fulfillers to the right operations subagent based on their request."
+start_agent topic_selector:
+  label: "Topic Selector"
+  description: "Routes IT service fulfillers to the right operations topic based on their request."
   reasoning:
     instructions: ->
       | Determine whether the fulfiller needs help with incidents, problems, change requests, knowledge questions, or a human handoff.
@@ -858,7 +853,7 @@ subagent knowledge_support:
         | {!@variables.knowledge_summary}
 
       | Answer general IT service management questions with knowledge.
-      | If the fulfiller's request becomes record-specific, route to the correct Incident, Problem, or Change Request subagent.
+      | If the fulfiller's request becomes record-specific, route to the correct Incident, Problem, or Change Request topic.
     actions:
       search_knowledge: @actions.answer_questions_with_knowledge
         description: "Search knowledge for policy, procedure, troubleshooting, or product guidance."
