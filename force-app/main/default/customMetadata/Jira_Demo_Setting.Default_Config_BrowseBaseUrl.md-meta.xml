@@ -16,6 +16,6 @@
     </values>
     <values>
         <field>SettingValue__c</field>
-        <value xsi:nil="true"/>
+        <value xsi:type="xsd:string">https://your-domain.atlassian.net</value>
     </values>
 </CustomMetadata>

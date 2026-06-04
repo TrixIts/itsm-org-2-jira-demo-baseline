@@ -1,0 +1,402 @@
+<template>
+    <section class="mapping-shell">
+        <header class="hero">
+            <div>
+                <p class="eyebrow">Connected backend control plane</p>
+                <h1>Jira Connector Mapping</h1>
+                <p class="subtitle">{connectorSubtitle}</p>
+            </div>
+            <div class="hero-actions">
+                <lightning-combobox
+                    class="profile-picker"
+                    label="Connector profile"
+                    variant="label-hidden"
+                    value={selectedConnectorKey}
+                    options={profileOptions}
+                    onchange={handleProfileSelect}
+                    disabled={isLoading}
+                ></lightning-combobox>
+                <lightning-button label="Refresh" onclick={handleRefresh} disabled={isLoading}></lightning-button>
+                <lightning-button
+                    variant="brand"
+                    label="Sync Jira Fields"
+                    onclick={handleSync}
+                    disabled={isLoading}
+                ></lightning-button>
+            </div>
+        </header>
+
+        <template if:true={errorMessage}>
+            <div class="error-panel" role="alert">{errorMessage}</div>
+        </template>
+
+        <template if:true={hasWorkspace}>
+            <section class="profile-panel" aria-label="Jira connector profile">
+                <div class="panel-heading">
+                    <span>Connector profile</span>
+                    <small>{selectedProfileLabel}</small>
+                </div>
+                <div class="profile-form">
+                    <div class="setup-step">
+                        <span>1</span>
+                        <strong>Connect</strong>
+                        <small>Choose a Jira credential and load projects.</small>
+                    </div>
+                    <lightning-input
+                        name="name"
+                        label="Profile name"
+                        value={profileDraft.name}
+                        onchange={handleProfileDraftChange}
+                    ></lightning-input>
+                    <lightning-input
+                        name="connectorKey"
+                        label="Connector key"
+                        value={profileDraft.connectorKey}
+                        onchange={handleProfileDraftChange}
+                        message-when-value-missing="Leave blank for new profiles to generate one"
+                    ></lightning-input>
+                    <lightning-input
+                        name="namedCredentialApiName"
+                        label="Named Credential API name"
+                        value={profileDraft.namedCredentialApiName}
+                        onchange={handleProfileDraftChange}
+                    ></lightning-input>
+                    <div class="inline-action">
+                        <lightning-button
+                            label="Load Jira Projects"
+                            onclick={handleLoadJiraProjects}
+                            disabled={isLoading}
+                        ></lightning-button>
+                    </div>
+                    <template if:true={hasProjectOptions}>
+                        <lightning-combobox
+                            name="projectPicker"
+                            label="Jira project"
+                            value={profileDraft.projectId}
+                            options={projectOptions}
+                            onchange={handleProjectChange}
+                        ></lightning-combobox>
+                    </template>
+                    <template if:true={hasIssueTypeOptions}>
+                        <lightning-combobox
+                            name="issueTypePicker"
+                            label="Jira issue type"
+                            value={profileDraft.issueTypeId}
+                            options={issueTypeOptions}
+                            onchange={handleIssueTypeChange}
+                        ></lightning-combobox>
+                    </template>
+                    <lightning-combobox
+                        name="salesforceObjectApiName"
+                        label="Salesforce object"
+                        value={profileDraft.salesforceObjectApiName}
+                        options={salesforceObjectOptions}
+                        onchange={handleSalesforceObjectChange}
+                    ></lightning-combobox>
+                    <lightning-input
+                        name="projectId"
+                        label="Jira project ID"
+                        value={profileDraft.projectId}
+                        onchange={handleProfileDraftChange}
+                    ></lightning-input>
+                    <lightning-input
+                        name="projectKey"
+                        label="Jira project key"
+                        value={profileDraft.projectKey}
+                        onchange={handleProfileDraftChange}
+                    ></lightning-input>
+                    <lightning-input
+                        name="projectName"
+                        label="Jira project name"
+                        value={profileDraft.projectName}
+                        onchange={handleProfileDraftChange}
+                    ></lightning-input>
+                    <lightning-input
+                        name="issueTypeId"
+                        label="Issue type ID"
+                        value={profileDraft.issueTypeId}
+                        onchange={handleProfileDraftChange}
+                    ></lightning-input>
+                    <lightning-input
+                        name="issueTypeName"
+                        label="Issue type name"
+                        value={profileDraft.issueTypeName}
+                        onchange={handleProfileDraftChange}
+                    ></lightning-input>
+                    <lightning-input
+                        name="browseBaseUrl"
+                        label="Browse base URL"
+                        value={profileDraft.browseBaseUrl}
+                        onchange={handleProfileDraftChange}
+                    ></lightning-input>
+                    <lightning-input
+                        name="openIssueJqlClause"
+                        label="Open issue JQL clause"
+                        value={profileDraft.openIssueJqlClause}
+                        onchange={handleProfileDraftChange}
+                    ></lightning-input>
+                    <lightning-input
+                        type="checkbox"
+                        name="active"
+                        label="Active profile"
+                        checked={profileDraft.active}
+                        onchange={handleProfileDraftChange}
+                    ></lightning-input>
+                    <lightning-input
+                        type="checkbox"
+                        name="activeForAgentforce"
+                        label="Active for Agentforce"
+                        checked={profileDraft.activeForAgentforce}
+                        onchange={handleProfileDraftChange}
+                    ></lightning-input>
+                    <lightning-input
+                        name="routeKey"
+                        label="Agentforce route key"
+                        value={profileDraft.routeKey}
+                        onchange={handleProfileDraftChange}
+                    ></lightning-input>
+                </div>
+                <div class="profile-actions">
+                    <lightning-button label="New Profile" onclick={handleNewProfile} disabled={isSavingProfile}></lightning-button>
+                    <lightning-button
+                        variant="brand"
+                        label="Save Profile"
+                        onclick={handleSaveProfile}
+                        disabled={saveProfileDisabled}
+                    ></lightning-button>
+                </div>
+                <template if:true={hasMultipleProfiles}>
+                    <p class="profile-note">
+                        Mappings and synced Jira fields are isolated per connector profile. Switch profiles above to manage another
+                        project or issue type.
+                    </p>
+                </template>
+            </section>
+
+            <section class="signal-grid" aria-label="Connector status">
+                <article class="signal-card">
+                    <span class="signal-label">Mapped fields</span>
+                    <strong>{mappedCount}</strong>
+                </article>
+                <article class="signal-card">
+                    <span class="signal-label">Active Jira fields</span>
+                    <strong>{activeFieldCount}</strong>
+                </article>
+                <article class="signal-card">
+                    <span class="signal-label">Required gaps</span>
+                    <strong>{requiredGapCount}</strong>
+                </article>
+                <article class="signal-card">
+                    <span class="signal-label">New since sync</span>
+                    <strong>{newFieldCount}</strong>
+                </article>
+                <article class="signal-card signal-card_wide">
+                    <span class="signal-label">Last sync</span>
+                    <strong>{lastSyncLabel}</strong>
+                </article>
+            </section>
+
+            <template if:true={hasHealthMessages}>
+                <section class="health-panel" aria-label="Connector health">
+                    <p class="panel-title">Review before enabling Agentforce</p>
+                    <template for:each={healthMessages} for:item="message">
+                        <p key={message} class="health-line">{message}</p>
+                    </template>
+                </section>
+            </template>
+
+            <section class="preview-panel" aria-label="Runtime preview">
+                <div>
+                    <p class="panel-title">Create payload preview</p>
+                    <pre>{payloadPreview}</pre>
+                </div>
+                <div>
+                    <p class="panel-title">Employee summary preview</p>
+                    <p>{summaryPreview}</p>
+                </div>
+            </section>
+
+            <main class="mapping-grid">
+                <section class="panel contract-panel" aria-label="Agentforce ticket contract">
+                    <div class="panel-heading">
+                        <span>Agentforce contract</span>
+                        <small>Canonical fields the agent can reason over</small>
+                    </div>
+                    <div class="contract-list">
+                        <template for:each={canonicalFields} for:item="field">
+                            <button key={field.key} class={field.cardClass} data-key={field.key} onclick={handleCanonicalSelect}>
+                                <span class="contract-group">{field.groupName}</span>
+                                <span class="contract-name">{field.label}</span>
+                                <span class="contract-description">{field.description}</span>
+                                <span class="contract-target">{field.mappedLabel}</span>
+                            </button>
+                        </template>
+                    </div>
+                </section>
+
+                <section class="panel policy-panel" aria-label="Mapping policy">
+                    <div class="panel-heading">
+                        <span>Mapping policy</span>
+                        <small>Controls what Agentforce may create, query, summarize, or update</small>
+                    </div>
+
+                    <div class="selected-policy">
+                        <p class="eyebrow">Selected contract field</p>
+                        <h2>{selectedCanonical.label}</h2>
+                        <p>{selectedCanonical.description}</p>
+                        <div class="selected-backend">
+                            <span>Jira target</span>
+                            <strong>{selectedBackendLabel}</strong>
+                        </div>
+                    </div>
+
+                    <lightning-combobox
+                        name="sourceType"
+                        label="Source type"
+                        value={draft.sourceType}
+                        options={sourceTypeOptions}
+                        onchange={handleDraftChange}
+                    ></lightning-combobox>
+                    <lightning-combobox
+                        name="sourceFieldApiName"
+                        label="Salesforce source field"
+                        value={draft.sourceFieldApiName}
+                        options={sourceFieldOptions}
+                        onchange={handleSourceFieldChange}
+                    ></lightning-combobox>
+                    <lightning-combobox
+                        name="direction"
+                        label="Direction"
+                        value={draft.direction}
+                        options={directionOptions}
+                        onchange={handleDraftChange}
+                    ></lightning-combobox>
+                    <lightning-combobox
+                        name="transformType"
+                        label="Transform"
+                        value={draft.transformType}
+                        options={transformOptions}
+                        onchange={handleDraftChange}
+                    ></lightning-combobox>
+
+                    <div class="toggle-grid">
+                        <lightning-input
+                            type="checkbox"
+                            name="enabled"
+                            label="Enabled for Agentforce"
+                            checked={draft.enabled}
+                            onchange={handleDraftChange}
+                        ></lightning-input>
+                        <lightning-input
+                            type="checkbox"
+                            name="useForCreate"
+                            label="Use for create"
+                            checked={draft.useForCreate}
+                            onchange={handleDraftChange}
+                        ></lightning-input>
+                        <lightning-input
+                            type="checkbox"
+                            name="useForLookup"
+                            label="Use for lookup"
+                            checked={draft.useForLookup}
+                            onchange={handleDraftChange}
+                        ></lightning-input>
+                        <lightning-input
+                            type="checkbox"
+                            name="useInSummary"
+                            label="Use in summaries"
+                            checked={draft.useInSummary}
+                            onchange={handleDraftChange}
+                        ></lightning-input>
+                        <lightning-input
+                            type="checkbox"
+                            name="allowAgentUpdate"
+                            label="Allow agent update"
+                            checked={draft.allowAgentUpdate}
+                            onchange={handleDraftChange}
+                        ></lightning-input>
+                        <lightning-input
+                            type="checkbox"
+                            name="askUserIfMissing"
+                            label="Ask user if missing"
+                            checked={draft.askUserIfMissing}
+                            onchange={handleDraftChange}
+                        ></lightning-input>
+                    </div>
+
+                    <lightning-input
+                        name="defaultValue"
+                        label="Default value"
+                        value={draft.defaultValue}
+                        onchange={handleDraftChange}
+                    ></lightning-input>
+                    <lightning-textarea
+                        name="transformConfigJson"
+                        label="Transform config JSON"
+                        value={draft.transformConfigJson}
+                        onchange={handleDraftChange}
+                    ></lightning-textarea>
+                    <lightning-textarea
+                        name="notes"
+                        label="Admin notes"
+                        value={draft.notes}
+                        onchange={handleDraftChange}
+                    ></lightning-textarea>
+
+                    <div class="policy-actions">
+                        <lightning-button label="Disable Mapping" onclick={handleDisable} disabled={isSaving}></lightning-button>
+                        <lightning-button
+                            variant="brand"
+                            label="Save Mapping"
+                            onclick={handleSave}
+                            disabled={saveDisabled}
+                        ></lightning-button>
+                    </div>
+                </section>
+
+                <section class="panel backend-panel" aria-label="Jira field catalog">
+                    <div class="panel-heading">
+                        <span>Jira field catalog</span>
+                        <small>Synced from project create metadata</small>
+                    </div>
+                    <lightning-input
+                        type="search"
+                        label="Search Jira fields"
+                        value={fieldSearch}
+                        onchange={handleFieldSearch}
+                    ></lightning-input>
+
+                    <template if:true={showEmptyCatalog}>
+                        <div class="empty-catalog">
+                            <p>No Jira fields are synced yet.</p>
+                            <p>Run <strong>Sync Jira Fields</strong> to discover fields for the configured project and issue type.</p>
+                        </div>
+                    </template>
+
+                    <div class="backend-list">
+                        <template for:each={backendFields} for:item="field">
+                            <button key={field.fieldKey} class={field.rowClass} data-key={field.fieldKey} onclick={handleBackendSelect}>
+                                <span class="backend-main">
+                                    <strong>{field.label}</strong>
+                                    <code>{field.fieldKey}</code>
+                                </span>
+                                <span class="backend-meta">
+                                    <span class={field.statusClass}>{field.status}</span>
+                                    <span>{field.requiredLabel}</span>
+                                    <span>{field.typeLabel}</span>
+                                </span>
+                                <span class="backend-ops">{field.operationLabel}</span>
+                            </button>
+                        </template>
+                    </div>
+                </section>
+            </main>
+        </template>
+
+        <template if:true={isLoading}>
+            <div class="loading-veil">
+                <lightning-spinner alternative-text="Loading Jira connector mapping" size="medium"></lightning-spinner>
+            </div>
+        </template>
+    </section>
+</template>

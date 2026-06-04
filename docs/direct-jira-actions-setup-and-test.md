@@ -1,7 +1,7 @@
 # Direct Jira Actions Setup And Test
 
 ## What This Uses
-- Apex callouts go through the existing named credential `JiraV21Jira_SM`.
+- Apex callouts go through the named credential configured in `Jira_Demo_Setting__mdt`.
 - Agentforce targets direct Apex actions instead of the Jira Flow actions.
 - Jira reporter resolution uses Salesforce `User.Username` mapped to Jira `accountId`.
 
@@ -9,14 +9,15 @@
 The direct Jira actions read `Jira_Demo_Setting__mdt` records.
 
 Default config records included in source:
-- `NamedCredentialApiName = JiraV21Jira_SM`
-- `ProjectId = 10001`
-- `IssueTypeId = 10001`
-- `ProjectKey = IT`
+- `NamedCredentialApiName = Jira_Named_Credential`
+- `ProjectId = YOUR_JIRA_PROJECT_ID`
+- `IssueTypeId = YOUR_JIRA_ISSUE_TYPE_ID`
+- `ProjectKey = YOUR_JIRA_PROJECT_KEY`
 - `OpenIssueJqlClause = statusCategory != Done ORDER BY updated DESC`
-- `BrowseBaseUrl =` blank by default
+- `BrowseBaseUrl = https://your-domain.atlassian.net`
 
 If your Jira project key or browse URL differs, update the corresponding `Jira_Demo_Setting__mdt` records after deployment.
+For the full clone-and-configure workflow, see `docs/jira-agentforce-connector-package.md`.
 
 ## Reporter Mapping Records
 Add one `Jira_Demo_Setting__mdt` record per demo user for reporter-based Jira create and lookup.
@@ -30,7 +31,7 @@ Use these field values:
 Example:
 - `SettingType__c = UserMapping`
 - `SettingKey__c = scott@example.demo`
-- `SettingValue__c = 712020:abcd1234-ef56-7890-abcd-1234567890ab`
+- `SettingValue__c = YOUR_JIRA_ACCOUNT_ID`
 - `AuxValue__c = Scott Hendrix`
 
 If no mapping exists for the running Salesforce username, the direct Jira create and "my open issues" actions will fail with a clear configuration message instead of silently guessing the reporter.
@@ -87,6 +88,6 @@ Expected result:
 Run these after deployment:
 
 ```bash
-sf apex test run --target-org "ITSM Org 2" --tests JiraDirectActionsTest --wait 30 --result-format human
-sf agent validate authoring-bundle --api-name "ItEmployeeAssistantV2" -o "ITSM Org 2" --json
+sf apex run test --target-org <target-org> --tests JiraDirectActionsTest --wait 30 --result-format human
+sf agent validate authoring-bundle --api-name ItEmployeeAssistantV3 --target-org <target-org> --json
 ```

@@ -2,6 +2,8 @@
 
 This blueprint is the recommended pattern when the customer wants Jira to remain the primary backend while Agentforce remains the employee-facing experience in Slack, Teams, voice, or Salesforce channels.
 
+For the portable Apex-first package and clone setup steps, see `docs/jira-agentforce-connector-package.md`. Values below that look like Jira project ids, issue type ids, custom field ids, option ids, or connector names are examples from one Jira configuration and should be replaced for the target org.
+
 ## Recommended Operating Model
 
 - Jira is the system of record for the ticket.
@@ -35,9 +37,9 @@ Current contract in the flow:
 Connector notes:
 - The flow uses the live action shape retrieved from the org:
   - action name: `JiraV2.createIssue`
-  - connection: `JiraV21Jira_SM`
-  - project id: `10001`
-  - issue type id: `10001` (`[System] Incident`)
+  - connection: `Jira_Named_Credential`
+  - project id: `YOUR_JIRA_PROJECT_ID`
+  - issue type id: `YOUR_JIRA_ISSUE_TYPE_ID`
 - The flow currently maps Jira custom fields by option id because that is the least ambiguous connector input shape.
 - After saving in Flow Builder, Salesforce serializes the accepted custom-field paths as:
   - `customfieldx5f10043.id` for `Urgency`

@@ -1,0 +1,2230 @@
+config:
+  developer_name: "ItEmployeeAssistantV3"
+  agent_label: "IT Employee Assistant V3"
+  description: "Employee-facing IT assistant that routes employees to knowledge, service requests, ticket follow-up, policy answers, collaboration onboarding, access approvals, and human-help guidance."
+  agent_type: "AgentforceEmployeeAgent"
+
+variables:
+  current_domain: mutable string = ""
+    description: "The active IT domain chosen by the router."
+  current_topic_api_name: mutable string = ""
+    description: "Legacy Builder topic API name passed to managed service catalog actions."
+  current_scope_hint: mutable string = ""
+    description: "Short scope reminder for the active domain."
+  pending_incident_context: mutable string = ""
+    description: "Issue summary to reuse if the employee later confirms incident creation."
+  launch_card_url: mutable string = ""
+    description: "Most recent launch card URL returned for a complex catalog item."
+  launch_card_name: mutable string = ""
+    description: "Display name for the most recent launch card."
+  last_ticket_search_results: mutable string = ""
+    description: "Latest relevant ticket search results returned by managed ticket search."
+  last_ticket_summary: mutable string = ""
+    description: "Latest ticket summary returned by the ticket summarization prompt."
+  last_ticket_action_result: mutable string = ""
+    description: "Latest reopen or add-comment result for an existing ticket."
+  last_jira_create_result: mutable string = ""
+    description: "Latest Jira create result returned by the direct Jira action."
+  last_jira_lookup_result: mutable string = ""
+    description: "Latest Jira lookup or reporter-search result returned by the direct Jira actions."
+  last_jira_update_result: mutable string = ""
+    description: "Latest Jira update result returned by the direct Jira action."
+  last_salesforce_incident_number: mutable string = ""
+    description: "Latest Salesforce incident number created for internal tracking."
+  pending_jira_issue_key: mutable string = ""
+    description: "Most recent explicit Jira issue key mentioned by the employee, such as IT-123."
+  policy_answer: mutable string = ""
+    description: "Latest company-policy answer."
+  pending_comment_text: mutable string = ""
+    description: "Exact comment text the employee explicitly approved for a ticket update."
+  reopen_confirmed: mutable boolean = False
+    description: "Whether the employee explicitly confirmed a reopen request."
+  comment_confirmed: mutable boolean = False
+    description: "Whether the employee explicitly confirmed the exact comment text and target ticket."
+  employee_name: mutable string = ""
+    description: "Employee name returned from lookup or confirmed by the employee for provisioning and account access actions."
+  department: mutable string = ""
+    description: "Employee department used for provisioning and Slack onboarding."
+  provisioning_email: mutable string = ""
+    description: "Username or email used by Okta and provisioning flows."
+  lookup_status: mutable string = ""
+    description: "Summary returned by Lookup Employee Details."
+  lookup_found: mutable boolean = False
+    description: "Whether the employee lookup found a matching record."
+  provisioning_status: mutable string = ""
+    description: "Latest Okta software provisioning status message."
+  box_provisioned: mutable boolean = False
+    description: "Whether Box provisioning succeeded."
+  provisioning_confirmation_received: mutable boolean = False
+    description: "Whether the employee already answered the software provisioning confirmation prompt."
+  proceed_with_provisioning: mutable boolean = False
+    description: "Whether the agent should run software provisioning now."
+  provisioning_pending: mutable boolean = False
+    description: "Whether the software provisioning conversation is still in progress and should stay in the provisioning topic."
+  slack_confirmation_received: mutable boolean = False
+    description: "Whether the employee already answered the Slack onboarding confirmation prompt."
+  slack_added: mutable boolean = False
+    description: "Whether Slack onboarding succeeded."
+  slack_channel_status: mutable string = ""
+    description: "Latest Slack onboarding status message."
+  proceed_with_slack: mutable boolean = False
+    description: "Whether the agent should add the employee to Slack channels now."
+  password_reset_status: mutable string = ""
+    description: "Result of the Okta password reset action."
+  password_reset_success: mutable boolean = False
+    description: "Whether the Okta password reset succeeded."
+  password_reset_pending: mutable boolean = False
+    description: "Whether the agent is waiting for Okta password reset details or needs to continue the reset flow."
+  password_reset_employee_name: mutable string = ""
+    description: "Employee name confirmed for the Okta password reset."
+  password_reset_email: mutable string = ""
+    description: "Employee email confirmed for the Okta password reset."
+  proceed_with_password_reset: mutable boolean = False
+    description: "Whether the agent should run the Okta password reset flow now."
+  collab_employee_email: mutable string = ""
+    description: "Employee email used for collaboration onboarding, access, and deprovisioning actions."
+  collab_employee_name: mutable string = ""
+    description: "Employee name returned from collaboration context lookup."
+  collab_department: mutable string = ""
+    description: "Employee department used for collaboration recommendations."
+  collab_role: mutable string = ""
+    description: "Employee role or title used for collaboration recommendations."
+  collab_manager_email: mutable string = ""
+    description: "Manager email returned from collaboration context lookup."
+  collab_okta_user_id: mutable string = ""
+    description: "Okta user identifier or fallback username for collaboration actions."
+  collab_slack_user_id: mutable string = ""
+    description: "Slack user identifier for onboarding share actions."
+  collab_context_loaded: mutable boolean = False
+    description: "Whether collaboration user context has been loaded."
+  collab_context_lookup_attempted: mutable boolean = False
+    description: "Whether the collaboration context lookup has already been attempted in this conversation."
+  collab_onboarding_summary: mutable string = ""
+    description: "Latest collaboration onboarding plan summary."
+  collab_onboarding_confirmed: mutable boolean = False
+    description: "Whether the employee explicitly confirmed their collaboration onboarding details before Slack and app fulfillment runs."
+  collab_recommended_channels: mutable string = ""
+    description: "Recommended Slack channels returned by collaboration onboarding planning."
+  collab_missing_apps: mutable string = ""
+    description: "Missing collaboration apps returned by onboarding planning."
+  collab_repo_options: mutable string = ""
+    description: "GitHub repository options returned by onboarding planning, catalog search, or the native rich choice action."
+  collab_approval_items: mutable string = ""
+    description: "Items that require approval before collaboration fulfillment."
+  collab_slack_canvas_url: mutable string = ""
+    description: "Slack canvas or message URL for the latest onboarding share."
+  collab_github_rich_status: mutable string = ""
+    description: "Latest native rich GitHub choice rendering status."
+  collab_repo_option_ids: mutable string = ""
+    description: "Comma-separated Collaboration Access Option record IDs returned for GitHub repository choices."
+  collab_catalog_results: mutable string = ""
+    description: "Latest collaboration catalog search results."
+  collab_selected_option_ids: mutable string = ""
+    description: "Comma-separated Collaboration Access Option record IDs selected for GitHub access."
+  collab_selected_item_keys: mutable string = ""
+    description: "Comma-separated target keys selected for collaboration access or removal."
+  collab_access_level: mutable string = ""
+    description: "Requested access level for selected collaboration items."
+  collab_target_type: mutable string = ""
+    description: "Target type for the current collaboration request, such as GitHubRepo, OktaApp, or SlackChannel."
+  collab_business_justification: mutable string = ""
+    description: "Business justification for access or deprovisioning request submission."
+  collab_request_id: mutable string = ""
+    description: "Latest collaboration request record ID."
+  collab_request_number: mutable string = ""
+    description: "Latest collaboration request number."
+  collab_request_status: mutable string = ""
+    description: "Latest collaboration request status."
+  collab_approval_status: mutable string = ""
+    description: "Latest collaboration approval status."
+  collab_underuse_threshold_days: mutable string = "90"
+    description: "Inactive-day threshold used for underused access recommendations."
+  collab_underused_access_summary: mutable string = ""
+    description: "Latest underused access recommendation summary."
+  collab_deprovision_item_keys: mutable string = ""
+    description: "Comma-separated target keys selected for deprovisioning."
+  collab_deprovision_request_number: mutable string = ""
+    description: "Latest collaboration deprovisioning request number."
+  collab_pending_submission: mutable boolean = False
+    description: "Whether a collaboration access submission is ready for explicit confirmation."
+  collab_pending_deprovision: mutable boolean = False
+    description: "Whether a collaboration deprovisioning submission is ready for explicit confirmation."
+
+system:
+  messages:
+    welcome: "Hello! I can help with IT issues, service requests, existing IT tickets, company policy questions, and IT escalation."
+    error: "Sorry, something went wrong while I was working on that. Please try again or ask me to guide you to the IT help desk."
+  instructions: "You are the IT Employee Assistant for internal employees. Keep responses concise, accurate, and action-oriented. Use knowledge when the employee is mainly asking for troubleshooting or guidance, but do not force knowledge-first behavior when the employee clearly wants an issue logged immediately. If the employee explicitly asks to create, log, open, or submit a ticket or incident, or if the issue is clearly urgent, high-impact, security-sensitive, or blocking work, prefer incident creation over additional troubleshooting. When both Jira and Salesforce Incident are involved, treat Jira as the operational source of truth and Salesforce Incident as internal shadow tracking and employee context. Never reopen a ticket or add a comment without explicit employee confirmation. If a request is about an existing incident, service request, case, or Jira issue, handle it in ticket follow-up instead of creating a new issue."
+
+knowledge:
+    rag_feature_config_id: "ARFPC_1JDHp000000sY41OAE"
+    citations_enabled: False
+    citations_url: ""
+
+language:
+  default_locale: "en_US"
+  additional_locales: ""
+  all_additional_locales: False
+
+start_agent topic_router:
+  description: "Route the employee to the best matching IT assistance topic."
+  actions:
+    collab_submit_github_router_action:
+      description: "Emergency direct submitter for GitHub repository access follow-ups when the router receives the repo choice, access level, and justification. Creates a Service Request and Flow-Based Approval. Use when the recent conversation is about GitHub access and the current message provides a repo choice plus access level and justification."
+      inputs:
+        RequesterEmail: string
+          description: "Requester email. Leave blank to use the running employee context."
+          is_required: False
+          is_user_input: True
+        TargetEmployeeEmail: string
+          description: "Target employee email. Leave blank to use the running employee context."
+          is_required: False
+          is_user_input: True
+        SelectedRepositoryKeys: string
+          description: "Selected GitHub repository label, full name, option number, record ID, or canonical target key from record-backed GitHub options."
+          is_required: True
+          is_user_input: True
+        SelectedRepositoryOptionIds: string
+          description: "Selected Collaboration Access Option record IDs when the employee chose record-backed GitHub options."
+          is_required: False
+          is_user_input: True
+        AccessLevel: string
+          description: "Requested access level, such as Read, Write, or Admin."
+          is_required: True
+          is_user_input: True
+        BusinessJustification: string
+          description: "Business justification for admin approval."
+          is_required: True
+          is_user_input: True
+      outputs:
+        RequestId: string
+          is_displayable: False
+          is_used_by_planner: True
+        RequestNumber: string
+          is_used_by_planner: True
+        RequestStatus: string
+          is_used_by_planner: True
+        ApprovalStatus: string
+          is_used_by_planner: True
+        SelectedRepositoryKeys: string
+          is_used_by_planner: True
+        SelectedRepositoryOptionIds: string
+          is_used_by_planner: True
+        StatusMessage: string
+          is_used_by_planner: True
+        SlackStatus: string
+          is_used_by_planner: True
+      target: "apex://CollabSubmitGitHubRepoSelectionAction"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Submitting GitHub repository approval request..."
+  reasoning:
+    instructions: ->
+      if @variables.password_reset_pending == True and @variables.password_reset_status == "":
+        transition to @topic.account_access_management
+
+      if @variables.provisioning_pending == True:
+        transition to @topic.software_provisioning
+
+      if @variables.collab_target_type == "GitHubRepo" and @variables.collab_request_number == "":
+        transition to @topic.collaboration_github_access_request
+
+      | Route the employee to the best matching topic.
+      | Prefer ticket follow-up when the employee is asking about an existing incident, case, or service request.
+      | Prefer policy query when the employee is asking about company policy, benefits, leave, reimbursements, entitlements, or guidelines.
+      | Prefer account access management when the employee asks for an Okta password reset, forgotten password help, account lockout help, or account access recovery. Okta password reset requests must not route to software provisioning.
+      | If the recent conversation is already about an Okta password reset and the latest employee message provides a name, email address, confirmation, or requested reset detail, route to account access management.
+      | Never answer that an Okta password reset is processing from the router. The account access management topic must handle any password reset follow-up.
+      | Highest priority for new-hire onboarding: if the employee says they just joined, are new to the company, need onboarding help, ask what they need for onboarding, want onboarding tasks, or ask for a checklist, route to collaboration management.
+      | If the employee explicitly asks to create, log, open, submit, or file a new ticket, incident, Jira issue, or service request, route to the matching domain topic so shared service request intake can create the operational records.
+      | Prefer software provisioning only when the employee is asking for direct Box access provisioning or the existing Okta software provisioning path and is not asking to create or log a ticket first.
+      | Prefer collaboration management when the employee says they just joined the org, wants onboarding tasks shared in Slack, asks which Slack channels to join, asks for collaboration app access, asks for GitHub repository access, or asks to review underused apps for deprovisioning. This collaboration path owns the demo onboarding flow.
+      | For GitHub repository access, never answer from the router. If the current message or recent conversation is about GitHub access, available repos, full repo list, viewing all repos, GitHub repo choices, access levels such as Read/Write/Admin, or a justification after repo options were shown, immediately route to GitHub access request.
+      | If the current router turn already has the GitHub repo option, option record ID, access level, and business justification, use {!@actions.collab_submit_github_router_action} directly instead of saying the request will be processed.
+      | If software provisioning is pending and the latest employee message provides provisioning confirmation, Slack confirmation, a provisioning email, or provisioning details, route to software provisioning.
+      | If software provisioning is pending but the latest employee message asks for an Okta password reset or account recovery, route to account access management instead.
+      | Prefer escalation when the employee explicitly asks for human help or the request clearly needs human intervention.
+      | Use the domain topics for new IT issues, access requests, infrastructure requests, hardware questions, and operational help.
+    actions:
+      go_to_account_access_management: @utils.transition to @topic.account_access_management
+        description: "Route Okta password resets, forgotten password help, and account access recovery."
+      go_to_software_provisioning: @utils.transition to @topic.software_provisioning
+        description: "Route onboarding software provisioning and Box setup, but not Okta password reset requests."
+      go_to_software_domain: @utils.transition to @topic.software_domain
+        description: "Route software issues, software installs, app access, licenses, and business application troubleshooting."
+      go_to_cloud_infrastructure_domain: @utils.transition to @topic.cloud_infrastructure_domain
+        description: "Route cloud, infrastructure, server, database, platform, and backend operations questions."
+      go_to_facilities_domain: @utils.transition to @topic.facilities_domain
+        description: "Route facilities, office access, seating, room, badge, and office-support requests."
+      go_to_it_security_domain: @utils.transition to @topic.it_security_domain
+        description: "Route phishing, malware, device loss, firewall, certificate, and security incident questions."
+      go_to_collaboration_domain: @utils.transition to @topic.collaboration_domain
+        description: "Route new-hire onboarding prompts like 'I just joined' or 'what do I need for onboarding', Slack channel recommendations, collaboration app suggestions, GitHub repository requests, approval status, and underused-access deprovisioning."
+      go_to_github_access_request: @utils.transition to @topic.collaboration_github_access_request
+        description: "Route GitHub repository access requests, available repo questions, full list requests, view-all repo requests, and follow-up selections. Use this when the employee asks for GitHub access, asks which repos are available, chooses a repo choice, gives access level Read/Write/Admin after GitHub options were shown, or provides a business justification for GitHub repo access."
+      submit_github_access_request: @actions.collab_submit_github_router_action
+        description: "Submit GitHub access directly from the router only when the recent conversation is already about GitHub repository access and the employee provides repo choice, record ID, access level, and justification. Resolve labels, full names, option numbers, record IDs, and keys through Collaboration Access Option records."
+        with RequesterEmail = ...
+        with TargetEmployeeEmail = ...
+        with SelectedRepositoryKeys = ...
+        with SelectedRepositoryOptionIds = ...
+        with AccessLevel = ...
+        with BusinessJustification = ...
+        set @variables.collab_request_id = @outputs.RequestId
+        set @variables.collab_request_number = @outputs.RequestNumber
+        set @variables.collab_request_status = @outputs.RequestStatus
+        set @variables.collab_approval_status = @outputs.ApprovalStatus
+      go_to_network_domain: @utils.transition to @topic.network_domain
+        description: "Route Wi-Fi, VPN, internet, identity, MFA, SSO, Okta, and directory-access issues."
+      go_to_hardware_domain: @utils.transition to @topic.hardware_domain
+        description: "Route laptop, monitor, keyboard, printer, asset, and peripheral questions."
+      go_to_employee_lifecycle_domain: @utils.transition to @topic.employee_lifecycle_domain
+        description: "Route HR-style lifecycle changes such as offboarding, transfers, promotions, manager changes, resignations, and formal employment-status access changes. Do not use for 'I just joined', new-hire onboarding checklist, Slack, app suggestions, or GitHub requests."
+      go_to_compliance_domain: @utils.transition to @topic.compliance_domain
+        description: "Route compliance, governance, privacy, reporting, and required-training support."
+      go_to_ticket_followup: @utils.transition to @topic.ticket_followup
+        description: "Route status checks, ticket summaries, reopen requests, and ticket comments."
+      go_to_policy_query: @utils.transition to @topic.policy_query
+        description: "Route company policy, benefits, leave, travel, and reimbursement questions."
+      go_to_escalation: @utils.transition to @topic.escalation
+        description: "Route explicit requests for a human support path."
+      go_to_off_topic: @utils.transition to @topic.off_topic
+        description: "Route greetings, unsupported requests, or unrelated requests."
+      go_to_ambiguous_question: @utils.transition to @topic.ambiguous_question
+        description: "Route unclear requests that need clarification before work can continue."
+
+topic software_provisioning:
+  description: "Handle employee software provisioning, Box setup, and Slack channel onboarding."
+  reasoning:
+    instructions: ->
+      if @variables.provisioning_pending == False and @variables.provisioning_status == "":
+        set @variables.provisioning_pending = True
+
+      if @variables.proceed_with_slack == True and @variables.slack_added == False:
+        run @actions.add_employee_to_slack_channels
+          with Department = @variables.department
+          with EmployeeEmail = @variables.provisioning_email
+          with EmployeeName = @variables.employee_name
+          set @variables.slack_added = @outputs.IsSuccess
+          set @variables.slack_channel_status = @outputs.SlackChannelStatus
+          set @variables.proceed_with_slack = False
+
+      if @variables.proceed_with_provisioning == True and @variables.box_provisioned == False:
+        run @actions.provision_box_via_okta
+          with Department = @variables.department
+          with EmployeeEmail = @variables.provisioning_email
+          with EmployeeName = @variables.employee_name
+          set @variables.box_provisioned = @outputs.IsSuccess
+          set @variables.provisioning_status = @outputs.ProvisioningStatus
+          set @variables.proceed_with_provisioning = False
+          set @variables.slack_confirmation_received = False
+          set @variables.provisioning_pending = True
+
+      if @variables.slack_added == True:
+        | {!@variables.slack_channel_status}
+        | Let the employee know their onboarding tasks are complete and ask whether they need anything else.
+        set @variables.provisioning_pending = False
+
+      if @variables.box_provisioned == True and @variables.slack_confirmation_received == False:
+        | {!@variables.provisioning_status}
+        | Provide the employee the Box sign-in URL: https://www.account.box.com
+        | Ask whether they would like to be added to their Slack channels too.
+
+      if @variables.lookup_found == True and @variables.provisioning_confirmation_received == False and @variables.box_provisioned == False:
+        | I found the employee record. Share the details for confirmation before provisioning.
+        | Name: {!@variables.employee_name}
+        | Department: {!@variables.department}
+        | Provisioning email: {!@variables.provisioning_email}
+        | Ask whether the employee wants Box provisioned now.
+
+      if @variables.lookup_found == False and @variables.lookup_status != "":
+        | {!@variables.lookup_status}
+        | Ask the employee to verify their work email address or contact IT support directly.
+
+      | This topic handles employee software provisioning, application access requests, new user onboarding software setup, Box activation, and Slack channel assignment.
+      | If the employee switches to an Okta password reset, forgotten password, lockout, or account recovery request, use {!@actions.go_to_account_access_management} instead of continuing provisioning.
+      | When an employee says they are new or need software provisioned, look up their details first.
+      | Always provide their name and department before provisioning and confirm with the employee before proceeding.
+      | After Box provisioning succeeds, provide the Box URL and ask whether they want to be added to their Slack channels.
+      | If they agree, use the same confirmed details and do not ask them to repeat information you already retrieved.
+    actions:
+      go_to_account_access_management: @utils.transition to @topic.account_access_management
+        description: "Move to Okta password reset or account access recovery when the employee changes from provisioning to account access."
+      lookup_employee: @actions.lookup_employee_details
+        description: "Look up employee details before confirming software provisioning."
+        with EmployeeEmail = ...
+        set @variables.department = @outputs.Department
+        set @variables.employee_name = @outputs.EmployeeName
+        set @variables.lookup_found = @outputs.IsFound
+        set @variables.lookup_status = @outputs.LookupStatus
+        set @variables.provisioning_email = @outputs.ProvisioningEmail
+        set @variables.provisioning_confirmation_received = False
+        set @variables.proceed_with_provisioning = False
+        set @variables.box_provisioned = False
+        set @variables.provisioning_status = ""
+        set @variables.slack_confirmation_received = False
+        set @variables.proceed_with_slack = False
+        set @variables.slack_added = False
+        set @variables.slack_channel_status = ""
+        set @variables.provisioning_pending = True
+      confirm_dropbox_provisioning: @utils.setVariables
+        description: "Employee confirmed they want Box provisioned with the looked-up details. Use this for short affirmative replies such as yes, confirm, please do, or go ahead after the Box provisioning confirmation prompt."
+        available when @variables.lookup_found == True and @variables.provisioning_confirmation_received == False and @variables.box_provisioned == False
+        with provisioning_confirmation_received = True
+        with proceed_with_provisioning = True
+        with provisioning_pending = True
+      decline_dropbox_provisioning: @utils.setVariables
+        description: "Employee declined Box provisioning after the confirmation prompt."
+        available when @variables.lookup_found == True and @variables.provisioning_confirmation_received == False and @variables.box_provisioned == False
+        with provisioning_confirmation_received = True
+        with proceed_with_provisioning = False
+        with provisioning_pending = False
+      confirm_slack_onboarding: @utils.setVariables
+        description: "Employee confirmed they want to be added to Slack channels. Use this for short affirmative replies after the Slack onboarding prompt."
+        available when @variables.box_provisioned == True and @variables.slack_confirmation_received == False and @variables.slack_added == False
+        with slack_confirmation_received = True
+        with proceed_with_slack = True
+        with provisioning_pending = True
+      decline_slack_onboarding: @utils.setVariables
+        description: "Employee declined Slack channel onboarding after the Slack confirmation prompt."
+        available when @variables.box_provisioned == True and @variables.slack_confirmation_received == False and @variables.slack_added == False
+        with slack_confirmation_received = True
+        with proceed_with_slack = False
+        with provisioning_pending = False
+      go_to_shared_intake: @utils.transition to @topic.shared_service_request_intake
+        description: "Move to standard service-request intake when the provisioning request should be logged instead of fulfilled directly."
+      go_to_escalation: @utils.transition to @topic.escalation
+        description: "Move to escalation when the employee wants human help."
+      back_to_router: @utils.transition to @topic.topic_router
+        description: "Return to the main router when the conversation changes topics."
+
+  actions:
+    lookup_employee_details:
+      description: "Look up an employee's details from their Salesforce User record before provisioning."
+      inputs:
+        EmployeeEmail: string
+          description: "The employee email address. Pull this from the conversation or current context; do not ask again if already known."
+          is_required: True
+      outputs:
+        Department: string
+          description: "Employee department returned from lookup."
+          is_used_by_planner: True
+        EmployeeName: string
+          description: "Employee full name returned from lookup."
+          is_used_by_planner: True
+        IsFound: boolean
+          description: "Whether the employee record was found."
+          is_displayable: False
+          is_used_by_planner: True
+        LookupStatus: string
+          description: "Summary of the lookup result."
+          is_displayable: False
+          is_used_by_planner: True
+        ProvisioningEmail: string
+          description: "Provisioning email returned from the employee record."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "flow://Lookup_Employee_Details"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Confirming your details..."
+
+    add_employee_to_slack_channels:
+      description: "Adds the employee to their department Slack channels after Box provisioning and employee confirmation."
+      inputs:
+        Department: string
+          description: "Employee department from the lookup action."
+          is_required: True
+        EmployeeEmail: string
+          description: "Employee provisioning email from the lookup action."
+          is_required: True
+        EmployeeName: string
+          description: "Employee full name from the lookup action."
+          is_required: True
+      outputs:
+        IsSuccess: boolean
+          description: "Whether Slack onboarding succeeded."
+          is_displayable: False
+          is_used_by_planner: True
+        SlackChannelStatus: string
+          description: "Confirmation message that explains which Slack channels were assigned."
+          is_used_by_planner: True
+      target: "flow://Add_Employee_to_Slack_Channels"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Adding you to Slack channels..."
+
+    provision_box_via_okta:
+      description: "Provision Box access for an employee through the Okta connector."
+      inputs:
+        Department: string
+          description: "The employee's department."
+          is_required: True
+        EmployeeEmail: string
+          description: "The employee's work email address."
+          is_required: True
+        EmployeeName: string
+          description: "The employee's full name."
+          is_required: True
+      outputs:
+        IsSuccess: boolean
+          description: "Whether provisioning succeeded."
+          is_displayable: False
+          is_used_by_planner: True
+        ProvisioningStatus: string
+          description: "Message describing the result of the provisioning request."
+          is_used_by_planner: True
+      target: "flow://Provision_Box_via_Okta"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Getting your applications set up..."
+
+topic account_access_management:
+  description: "Handle Okta password resets, forgotten password help, and account access recovery."
+  reasoning:
+    instructions: ->
+      if @variables.provisioning_pending == True:
+        set @variables.provisioning_pending = False
+
+      if @variables.password_reset_pending == False and @variables.password_reset_status == "":
+        set @variables.password_reset_pending = True
+
+      if @variables.proceed_with_password_reset == True and @variables.password_reset_status == "":
+        run @actions.reset_okta_password
+          with EmployeeEmail = @variables.password_reset_email
+          with EmployeeName = @variables.password_reset_employee_name
+          set @variables.password_reset_status = @outputs.ResetStatus
+          set @variables.password_reset_success = @outputs.IsSuccess
+          set @variables.proceed_with_password_reset = False
+          set @variables.password_reset_pending = False
+
+      if @variables.password_reset_status != "":
+        | {!@variables.password_reset_status}
+        | If the reset failed or the employee still needs help, offer escalation to a human IT representative.
+
+      | Help employees with Okta password resets, forgotten passwords, account lockouts, and account access issues.
+      | Before running the password reset action, collect the employee's name and work email.
+      | When the employee provides both name and work email for a password reset, use {!@actions.capture_password_reset_details}; do not tell them the reset is being processed yet.
+      | Never say that a password reset was requested, started, initiated, or is being processed unless @variables.password_reset_status is populated from the reset action output.
+      | After details are captured, the deterministic reset step runs the reset action and shares the resulting status message.
+      | If the employee needs help beyond a password reset, route them to escalation or the standard service intake path.
+    actions:
+      capture_password_reset_details: @utils.setVariables
+        description: "Capture the employee's confirmed name and work email, then trigger the deterministic password reset flow."
+        available when @variables.password_reset_pending == True and @variables.password_reset_status == ""
+        with password_reset_employee_name = ...
+        with password_reset_email = ...
+        with proceed_with_password_reset = True
+        with password_reset_pending = True
+        with password_reset_status = ""
+        with password_reset_success = False
+      go_to_shared_intake: @utils.transition to @topic.shared_service_request_intake
+        description: "Move to standard service intake when the access issue should be logged instead of reset directly."
+      go_to_escalation: @utils.transition to @topic.escalation
+        description: "Move to escalation when the employee wants human help."
+      back_to_router: @utils.transition to @topic.topic_router
+        description: "Return to the main router when the conversation changes topics."
+
+  actions:
+    reset_okta_password:
+      description: "Reset an employee's Okta password after confirming their name and work email."
+      inputs:
+        EmployeeEmail: string
+          description: "The employee work email address associated with the Okta account."
+          is_required: True
+        EmployeeName: string
+          description: "The employee full name."
+          is_required: True
+      outputs:
+        IsSuccess: boolean
+          description: "Whether the password reset succeeded."
+          is_displayable: False
+          is_used_by_planner: True
+        ResetStatus: string
+          description: "Message describing the result of the password reset attempt."
+          is_used_by_planner: True
+      target: "flow://Reset_Okta_Password"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Resetting your password..."
+
+topic software_domain:
+  description: "Select the software-management domain and hand off to shared IT intake."
+  reasoning:
+    instructions: ->
+      set @variables.current_domain = "software"
+      set @variables.current_topic_api_name = "SoftwareManagement"
+      set @variables.current_scope_hint = "Software applications, access, licenses, email and collaboration app access, software installation and removal, and software break-fix."
+      transition to @topic.shared_service_request_intake
+
+topic cloud_infrastructure_domain:
+  description: "Select the cloud-and-infrastructure domain and hand off to shared IT intake."
+  reasoning:
+    instructions: ->
+      set @variables.current_domain = "cloud and infrastructure"
+      set @variables.current_topic_api_name = "CloudAndInfrastructureManagement"
+      set @variables.current_scope_hint = "Cloud services, servers, backend platforms, databases, infrastructure operations, and environment support."
+      transition to @topic.shared_service_request_intake
+
+topic facilities_domain:
+  description: "Select the facilities-management domain and hand off to shared IT intake."
+  reasoning:
+    instructions: ->
+      set @variables.current_domain = "facilities"
+      set @variables.current_topic_api_name = "FacilitiesManagement"
+      set @variables.current_scope_hint = "Office facilities, seating, badges, access, rooms, moves, office supplies, and workplace environment support."
+      transition to @topic.shared_service_request_intake
+
+topic it_security_domain:
+  description: "Select the IT-security domain and hand off to shared IT intake."
+  reasoning:
+    instructions: ->
+      set @variables.current_domain = "it security"
+      set @variables.current_topic_api_name = "ITSecurityManagement"
+      set @variables.current_scope_hint = "Security incidents, phishing, malware, device loss, firewall changes, certificate requests, and vendor security reviews."
+      transition to @topic.shared_service_request_intake
+
+topic collaboration_domain:
+  description: "Route collaboration onboarding, access requests, GitHub repository requests, approval status, and deprovisioning work."
+  reasoning:
+    instructions: ->
+      | Route collaboration work to the best matching collaboration topic.
+      | Use onboarding when the employee just joined, needs a Slack onboarding checklist, wants recommended Slack channels, or asks which collaboration apps fit their role.
+      | Use access request when the employee asks for app access, Slack channel membership, GitHub repository access, or a missing collaboration tool.
+      | Use deprovisioning when the employee asks about unused apps, stale access, access review, or removing collaboration access.
+      | Use approval status when the employee asks for the state of a collaboration access or deprovisioning request.
+      | If the employee explicitly wants only to log a generic ticket, route to shared intake instead of direct collaboration orchestration.
+    actions:
+      go_to_collaboration_onboarding: @utils.transition to @topic.collaboration_onboarding
+        description: "Start new-hire or role-based collaboration onboarding."
+      go_to_collaboration_access_request: @utils.transition to @topic.collaboration_access_request
+        description: "Search app, Slack, or GitHub repo options and submit an approval-backed access request."
+      go_to_github_access_request: @utils.transition to @topic.collaboration_github_access_request
+        description: "Handle GitHub repository access requests and follow-up repo option/access-level/justification replies."
+      go_to_collaboration_deprovisioning: @utils.transition to @topic.collaboration_deprovisioning
+        description: "Audit underused collaboration access and submit approval-backed removal requests."
+      go_to_collaboration_approval_status: @utils.transition to @topic.collaboration_approval_status
+        description: "Look up collaboration access or deprovision request status."
+      go_to_shared_intake: @utils.transition to @topic.shared_service_request_intake
+        description: "Create a generic IT service request instead of direct collaboration orchestration."
+      back_to_router: @utils.transition to @topic.topic_router
+        description: "Return to the main router."
+
+topic collaboration_github_access_request:
+  description: "Own all GitHub repository access conversations, including showing the full available repo list, answering which repos are available, collecting repo choice/access level/justification, and submitting a Service Request and Flow-Based Approval."
+  reasoning:
+    instructions: ->
+      if @variables.collab_context_lookup_attempted == False:
+        run @actions.collab_get_user_context
+          with EmployeeEmail = ""
+          with LookupMode = "SelfService"
+          set @variables.collab_employee_email = @outputs.EmployeeEmail
+          set @variables.collab_employee_name = @outputs.EmployeeName
+          set @variables.collab_department = @outputs.Department
+          set @variables.collab_role = @outputs.RoleName
+          set @variables.collab_manager_email = @outputs.ManagerEmail
+          set @variables.collab_okta_user_id = @outputs.OktaUserId
+          set @variables.collab_slack_user_id = @outputs.SlackUserId
+          set @variables.collab_context_loaded = @outputs.IsFound
+          set @variables.collab_context_lookup_attempted = True
+
+      if @variables.collab_request_number != "":
+        | GitHub access request {!@variables.collab_request_number} was submitted with approval status {!@variables.collab_approval_status}.
+        | Tell the employee fulfillment waits for approval. Do not create another request unless they ask for another repository.
+
+      | This topic owns all GitHub repository access requests. Do not send GitHub choices back to the topic router.
+      | Repo choices and fallback keys: {!@variables.collab_repo_options}
+      | Repo option record IDs: {!@variables.collab_repo_option_ids}
+      | If the employee asks for GitHub access, immediately use {!@actions.submit_github_repo_record_request}. Do not answer with a plain text clarification question first.
+      | The record-input action must collect the repository as a required Collaboration Access Option record input, plus access level and business justification. This is the preferred Product-like path.
+      | Do not ask "would you like to see a list" and do not automatically list numbered repositories before trying the record-input action.
+      | If the employee asks "which repos are available", "full list", "view all", "show me the repos", "available repos", or "what repositories", use {!@actions.show_github_repo_choices} as a fallback to show the records.
+      | Ask only for repository record selection, access level, and business justification. The selected repository should be an active Collaboration_Access_Option__c record with Target Type GitHubRepo.
+      | If record input rendering is not available and the employee provides a repo choice label, repo key, repo name, option number, record ID, an access level, and a business justification, use {!@actions.submit_github_service_request}. If the company email is not known from context and not provided by the employee, leave the email blank so the action uses the running employee context.
+      | Never say a GitHub request will be processed or submitted unless {!@actions.collab_submit_github_slack_approval} returns a non-empty RequestNumber.
+    actions:
+      submit_github_repo_record_request: @actions.collab_submit_github_repo_record_approval
+        description: "Primary Product-like GitHub request path. Use this when the employee asks for GitHub repository access so Slack/Agentforce can collect a Collaboration Access Option record as the repository choice instead of showing a numbered text list."
+        with RequesterEmail = @variables.collab_employee_email
+        with TargetEmployeeEmail = @variables.collab_employee_email
+        with SelectedRepositoryOptionId = ...
+        with AccessLevel = ...
+        with BusinessJustification = ...
+        set @variables.collab_request_id = @outputs.RequestId
+        set @variables.collab_request_number = @outputs.RequestNumber
+        set @variables.collab_request_status = @outputs.RequestStatus
+        set @variables.collab_approval_status = @outputs.ApprovalStatus
+        set @variables.collab_pending_submission = False
+      show_github_repo_choices: @actions.collab_get_github_rich_content
+        description: "Return native Agentforce rich choices and text fallback for all available GitHub repositories. Use immediately when the employee asks which repos are available, asks for the full list, asks to view all repos, says they do not know the exact repo, says ready after being asked to view options, or needs repo choices before selecting access."
+        with Department = @variables.collab_department
+        with RoleName = @variables.collab_role
+        with CanvasUrl = ""
+        with CanvasTitle = "Collaboration onboarding Canvas"
+        set @variables.collab_repo_options = @outputs.RepositoryOptionsText
+        set @variables.collab_repo_option_ids = @outputs.RepositoryOptionRecordIds
+        set @variables.collab_slack_canvas_url = @outputs.linkUrl
+        set @variables.collab_github_rich_status = @outputs.StatusMessage
+      submit_github_service_request: @actions.collab_submit_github_slack_approval
+        description: "Submit the GitHub repository access request immediately when the employee provides repo label, repo name, repo option, record ID, or repo key, access level, and business justification. Resolve choices from the record-backed GitHub catalog returned by the rich content action. Leave emails blank if not known so the Apex action uses the running employee context."
+        with RequesterEmail = ...
+        with TargetEmployeeEmail = ...
+        with SelectedRepositoryKeys = ...
+        with SelectedRepositoryOptionIds = ...
+        with AccessLevel = ...
+        with BusinessJustification = ...
+        set @variables.collab_request_id = @outputs.RequestId
+        set @variables.collab_request_number = @outputs.RequestNumber
+        set @variables.collab_request_status = @outputs.RequestStatus
+        set @variables.collab_approval_status = @outputs.ApprovalStatus
+        set @variables.collab_pending_submission = False
+      capture_and_submit_github_request_details: @utils.setVariables
+        description: "Use when the employee provides a GitHub repo choice, repo label, repo name, record ID, or repo key, access level, and business justification. If employee email is already known from context, use it. Prefer the matching Collaboration Access Option record ID when available."
+        with collab_selected_item_keys = ...
+        with collab_selected_option_ids = ...
+        with collab_target_type = "GitHubRepo"
+        with collab_employee_email = ...
+        with collab_access_level = ...
+        with collab_business_justification = ...
+        with collab_pending_submission = True
+        run @actions.collab_submit_github_slack_approval
+          with RequesterEmail = @variables.collab_employee_email
+          with TargetEmployeeEmail = @variables.collab_employee_email
+          with SelectedRepositoryKeys = @variables.collab_selected_item_keys
+          with SelectedRepositoryOptionIds = @variables.collab_selected_option_ids
+          with AccessLevel = @variables.collab_access_level
+          with BusinessJustification = @variables.collab_business_justification
+          set @variables.collab_request_id = @outputs.RequestId
+          set @variables.collab_request_number = @outputs.RequestNumber
+          set @variables.collab_request_status = @outputs.RequestStatus
+          set @variables.collab_approval_status = @outputs.ApprovalStatus
+          set @variables.collab_pending_submission = False
+      go_to_approval_status: @utils.transition to @topic.collaboration_approval_status
+        description: "Check status of a submitted GitHub access request."
+      back_to_collaboration_router: @utils.transition to @topic.collaboration_domain
+        description: "Return to collaboration routing."
+  actions:
+    collab_get_user_context:
+      description: "Loads Salesforce user context for collaboration GitHub access requests."
+      inputs:
+        EmployeeEmail: string
+          description: "Optional employee email or username. The Flow defaults to the running Agentforce employee context."
+          is_required: False
+        LookupMode: string
+          description: "Lookup mode, such as SelfService or AdminTarget."
+      outputs:
+        IsFound: boolean
+          description: "Whether the employee was found."
+          is_displayable: False
+          is_used_by_planner: True
+        EmployeeName: string
+          description: "Employee full name."
+          is_used_by_planner: True
+        EmployeeEmail: string
+          description: "Employee email address."
+          is_displayable: False
+          is_used_by_planner: True
+        Department: string
+          description: "Employee department."
+          is_used_by_planner: True
+        RoleName: string
+          description: "Employee title or role name."
+          is_used_by_planner: True
+        ManagerEmail: string
+          description: "Manager email when available."
+          is_displayable: False
+          is_used_by_planner: True
+        OktaUserId: string
+          description: "Okta user identifier or fallback username."
+          is_displayable: False
+          is_used_by_planner: True
+        SlackUserId: string
+          description: "Slack user identifier when available."
+          is_displayable: False
+          is_used_by_planner: True
+        StatusMessage: string
+          description: "Human-readable lookup result."
+          is_used_by_planner: True
+      target: "flow://Collab_Get_User_Context"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Loading collaboration profile..."
+    collab_get_github_rich_content:
+      description: "Returns native Agentforce rich choices for record-backed GitHub repositories and a rich onboarding Canvas link."
+      inputs:
+        Department: string
+          description: "Employee department used to tailor choices."
+        RoleName: string
+          description: "Employee role used to tailor choices."
+        CanvasUrl: string
+          description: "Optional Slack Canvas URL override."
+        CanvasTitle: string
+          description: "Display title for the Slack Canvas rich link."
+      outputs:
+        RepositoryRecords: list[object]
+          description: "Native Salesforce Collaboration Access Option records for active GitHub repository choices."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_displayable: True
+          filter_from_agent: True
+        items: list[object]
+          description: "Native rich choice items with name, imageUrl, mimeType, and description."
+          complex_data_type_name: "@apexClassType/c__CollabGitHubRichContentAction$ChoiceItem"
+          is_displayable: True
+          filter_from_agent: True
+        RepositoryOptionsText: string
+          description: "Text fallback with repository labels, canonical keys, and record IDs."
+          is_displayable: False
+          is_used_by_planner: True
+        RepositoryOptionRecordIds: string
+          description: "Comma-separated Collaboration Access Option record IDs for GitHub repository choices."
+          is_displayable: False
+          is_used_by_planner: True
+        RepositoryTargetKeys: string
+          description: "Comma-separated GitHub repository target keys returned with the choices."
+          is_displayable: False
+          is_used_by_planner: True
+        HasRepositoryChoices: boolean
+          description: "Whether active GitHub choices were found."
+          is_displayable: False
+          is_used_by_planner: True
+        linkTitle: string
+          description: "Rich link title for the onboarding Canvas."
+          is_displayable: True
+          is_used_by_planner: True
+        linkUrl: string
+          description: "Rich link URL for the onboarding Canvas."
+          is_displayable: True
+          is_used_by_planner: True
+        linkImageUrl: string
+          description: "Rich link image URL."
+          is_displayable: False
+          is_used_by_planner: True
+        linkImageMimeType: string
+          description: "Rich link image MIME type."
+          is_displayable: False
+          is_used_by_planner: True
+        description: string
+          description: "Rich link description."
+          is_displayable: True
+          is_used_by_planner: True
+        StatusMessage: string
+          description: "Rich content generation status."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "apex://CollabGitHubRichContentAction"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Loading GitHub repository choices..."
+    collab_submit_github_slack_approval:
+      description: "Creates a Service Request and submits a native Flow-Based Approval for selected GitHub repository records or keys."
+      label: "Submit GitHub Access Request"
+      require_user_confirmation: True
+      inputs:
+        RequesterEmail: string
+          description: "Requester email from employee context."
+          is_required: False
+          is_user_input: True
+        TargetEmployeeEmail: string
+          description: "Target employee email from employee context."
+          is_required: False
+          is_user_input: True
+        SelectedRepositoryKeys: string
+          description: "Comma-separated GitHub target keys, labels, option numbers, repo names, or record IDs to submit."
+          is_required: True
+          is_user_input: True
+        SelectedRepositoryOptionIds: string
+          description: "Comma-separated Collaboration Access Option record IDs to submit."
+          is_required: False
+          is_user_input: True
+        AccessLevel: string
+          description: "Requested access level, such as Read, Write, or Admin."
+          is_required: True
+          is_user_input: True
+        BusinessJustification: string
+          description: "Business justification for admin approval."
+          is_required: True
+          is_user_input: True
+      outputs:
+        RequestId: string
+          is_displayable: False
+          is_used_by_planner: True
+        RequestNumber: string
+          is_used_by_planner: True
+        RequestStatus: string
+          is_used_by_planner: True
+        ApprovalStatus: string
+          is_used_by_planner: True
+        SelectedRepositoryKeys: string
+          is_used_by_planner: True
+        SelectedRepositoryOptionIds: string
+          is_used_by_planner: True
+        StatusMessage: string
+          is_used_by_planner: True
+        SlackStatus: string
+          is_used_by_planner: True
+      target: "apex://CollabSubmitGitHubRepoSelectionAction"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Submitting GitHub repository approval request..."
+    collab_submit_github_repo_record_approval:
+      description: "Creates a Service Request and Flow-Based Approval from a selected Collaboration Access Option record. Prefer this action for GitHub access so Slack can collect a Salesforce record input."
+      label: "Submit GitHub Access Request"
+      require_user_confirmation: True
+      inputs:
+        RequesterEmail: string
+          description: "Requester email from employee context."
+          is_required: False
+          is_user_input: False
+        TargetEmployeeEmail: string
+          description: "Target employee email from employee context."
+          is_required: False
+          is_user_input: False
+        SelectedRepositoryOptionId: id
+          description: "Select the active Collaboration Access Option record for the GitHub repository. The record should have Target Type GitHubRepo."
+          complex_data_type_name: "lightning__recordIdType"
+          is_required: True
+          is_user_input: True
+        AccessLevel: string
+          description: "Requested access level, such as Read, Write, or Admin."
+          is_required: True
+          is_user_input: True
+        BusinessJustification: string
+          description: "Business justification for admin approval."
+          is_required: True
+          is_user_input: True
+      outputs:
+        RequestId: string
+          is_displayable: False
+          is_used_by_planner: True
+        RequestNumber: string
+          is_used_by_planner: True
+        RequestStatus: string
+          is_used_by_planner: True
+        ApprovalStatus: string
+          is_used_by_planner: True
+        SelectedRepositoryKeys: string
+          is_used_by_planner: True
+        SelectedRepositoryOptionIds: string
+          is_used_by_planner: True
+        StatusMessage: string
+          is_used_by_planner: True
+        SlackStatus: string
+          is_used_by_planner: True
+      target: "apex://CollabSubmitGitHubRepoSelectionAction"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Submitting GitHub repository approval request..."
+
+topic collaboration_onboarding:
+  description: "Build and share collaboration onboarding tasks, channel recommendations, app gaps, and GitHub repo options."
+  reasoning:
+    instructions: ->
+      if @variables.collab_slack_canvas_url != "":
+        | Slack onboarding result: {!@variables.collab_slack_canvas_url}
+        | Present the onboarding Canvas as the rich link returned by the action. Then ask whether they want to provision a suggested app or request GitHub repository access in this conversation.
+
+      if @variables.collab_onboarding_summary != "" and @variables.collab_onboarding_confirmed == False:
+        | Collaboration onboarding plan: {!@variables.collab_onboarding_summary}
+        | Employee details to confirm: name={!@variables.collab_employee_name}, email={!@variables.collab_employee_email}, department={!@variables.collab_department}, role={!@variables.collab_role}.
+        | Recommended Slack channels: {!@variables.collab_recommended_channels}
+        | Suggested apps: {!@variables.collab_missing_apps}
+        | GitHub repo options: {!@variables.collab_repo_options}
+        | Approval-required items: {!@variables.collab_approval_items}
+        | Present these exact values in direct text. Ask the employee to confirm the details before running Slack onboarding or app provisioning. Explain that GitHub repository access can be requested by replying with a repo number or name in the conversation.
+
+      | Help the employee get collaboration-ready using agent context. First load their context, then build a role-based onboarding plan.
+      | Do not ask the employee to enter their name, email, department, or role unless the context lookup fails.
+      | Do not run Slack onboarding or direct app provisioning until the employee explicitly confirms the details shown above.
+      | GitHub repository access is approval-only: use the dedicated GitHub topic and its native rich choice action when the employee asks for GitHub access. Keep GitHub selection and approval submission inside the agent conversation.
+      | If the employee asks for the onboarding canvas or says "please link it", use {!@actions.collab_create_slack_onboarding_canvas} so Slack can render the Canvas URL as a rich link.
+    actions:
+      load_collaboration_context: @actions.collab_get_user_context
+        description: "Load employee context from the running Agentforce employee context. Do not ask for email unless lookup fails."
+        available when @variables.collab_context_loaded == False
+        with EmployeeEmail = ""
+        with LookupMode = "SelfService"
+        set @variables.collab_employee_email = @outputs.EmployeeEmail
+        set @variables.collab_employee_name = @outputs.EmployeeName
+        set @variables.collab_department = @outputs.Department
+        set @variables.collab_role = @outputs.RoleName
+        set @variables.collab_manager_email = @outputs.ManagerEmail
+        set @variables.collab_okta_user_id = @outputs.OktaUserId
+        set @variables.collab_slack_user_id = @outputs.SlackUserId
+        set @variables.collab_context_loaded = @outputs.IsFound
+      build_onboarding_plan: @actions.collab_build_onboarding_plan
+        description: "Build role-based collaboration onboarding recommendations after employee context is loaded."
+        available when @variables.collab_context_loaded == True and @variables.collab_onboarding_summary == ""
+        with EmployeeEmail = @variables.collab_employee_email
+        with Department = @variables.collab_department
+        with RoleName = @variables.collab_role
+        with OktaUserId = @variables.collab_okta_user_id
+        with SlackUserId = @variables.collab_slack_user_id
+        set @variables.collab_onboarding_summary = @outputs.PlanSummary
+        set @variables.collab_recommended_channels = @outputs.RecommendedChannels
+        set @variables.collab_missing_apps = @outputs.MissingApps
+        set @variables.collab_repo_options = @outputs.RepoOptions
+        set @variables.collab_approval_items = @outputs.ApprovalRequiredItems
+      confirm_onboarding_details: @utils.setVariables
+        description: "Mark onboarding details confirmed only after the employee explicitly confirms the displayed name, email, department, role, Slack channels, and suggested apps."
+        available when @variables.collab_onboarding_summary != "" and @variables.collab_onboarding_confirmed == False
+        with collab_onboarding_confirmed = True
+      share_onboarding_in_slack: @actions.collab_create_slack_onboarding_canvas
+        description: "Return an onboarding Canvas rich link after explicit confirmation. Slack channel additions remain handled by the collaboration Slack flow path."
+        available when @variables.collab_onboarding_summary != "" and @variables.collab_onboarding_confirmed == True and @variables.collab_slack_canvas_url == ""
+        with EmployeeEmail = @variables.collab_employee_email
+        with SlackUserId = @variables.collab_slack_user_id
+        with PlanSummary = @variables.collab_onboarding_summary
+        with RecommendedChannels = @variables.collab_recommended_channels
+        with MissingApps = @variables.collab_missing_apps
+        with RepoOptions = @variables.collab_repo_options
+        set @variables.collab_slack_canvas_url = @outputs.linkUrl
+      go_to_access_request: @utils.transition to @topic.collaboration_access_request
+        description: "Move to access request when the employee wants to request selected missing apps, Slack channels, or GitHub repository approval in the conversation."
+      back_to_collaboration_router: @utils.transition to @topic.collaboration_domain
+        description: "Return to collaboration routing."
+  actions:
+    collab_get_user_context:
+      description: "Loads Salesforce user context for collaboration onboarding and access requests."
+      inputs:
+        EmployeeEmail: string
+          description: "Optional employee email or username. The Flow defaults to the running Agentforce employee context."
+          is_required: False
+        LookupMode: string
+          description: "Lookup mode, such as SelfService or AdminTarget."
+      outputs:
+        IsFound: boolean
+          description: "Whether the employee was found."
+          is_displayable: False
+          is_used_by_planner: True
+        EmployeeName: string
+          description: "Employee full name."
+          is_used_by_planner: True
+        EmployeeEmail: string
+          description: "Employee email address."
+          is_displayable: False
+          is_used_by_planner: True
+        Department: string
+          description: "Employee department."
+          is_used_by_planner: True
+        RoleName: string
+          description: "Employee title or role name."
+          is_used_by_planner: True
+        ManagerEmail: string
+          description: "Manager email when available."
+          is_displayable: False
+          is_used_by_planner: True
+        OktaUserId: string
+          description: "Okta user identifier or fallback username."
+          is_displayable: False
+          is_used_by_planner: True
+        SlackUserId: string
+          description: "Slack user identifier when available."
+          is_displayable: False
+          is_used_by_planner: True
+        StatusMessage: string
+          description: "Human-readable lookup result."
+          is_used_by_planner: True
+      target: "flow://Collab_Get_User_Context"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Loading collaboration profile..."
+    collab_build_onboarding_plan:
+      description: "Builds a role-based collaboration onboarding plan from curated metadata."
+      inputs:
+        EmployeeEmail: string
+        Department: string
+        RoleName: string
+        OktaUserId: string
+        SlackUserId: string
+      outputs:
+        PlanSummary: string
+          description: "Role-based onboarding plan."
+          is_used_by_planner: True
+        RecommendedChannels: string
+          description: "Recommended Slack channels."
+          is_used_by_planner: True
+        MissingApps: string
+          description: "Recommended missing app access."
+          is_used_by_planner: True
+        RepoOptions: string
+          description: "Curated GitHub repository options."
+          is_used_by_planner: True
+        ApprovalRequiredItems: string
+          description: "Items that require approval."
+          is_used_by_planner: True
+        AlreadyAssignedItems: string
+          description: "Items already assigned."
+          is_used_by_planner: True
+        StatusMessage: string
+          description: "Plan generation status."
+          is_used_by_planner: True
+      target: "flow://Collab_Build_Onboarding_Plan"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Building collaboration onboarding plan..."
+    collab_create_slack_onboarding_canvas:
+      description: "Returns a rich link for the collaboration onboarding Canvas and status for Slack rendering."
+      inputs:
+        EmployeeEmail: string
+        SlackUserId: string
+        PlanSummary: string
+        RecommendedChannels: string
+        MissingApps: string
+        RepoOptions: string
+      outputs:
+        IsSuccess: boolean
+          description: "Whether Slack share preparation succeeded."
+          is_displayable: False
+          is_used_by_planner: True
+        SlackShareUrl: string
+          description: "Slack Canvas or message URL when available."
+          is_used_by_planner: True
+        ShareStatus: string
+          description: "Slack share status."
+          is_used_by_planner: True
+        linkTitle: string
+          description: "Rich link title for the onboarding Canvas."
+          is_displayable: True
+          is_used_by_planner: True
+        linkUrl: string
+          description: "Rich link URL for the onboarding Canvas."
+          is_displayable: True
+          is_used_by_planner: True
+        linkImageUrl: string
+          description: "Rich link image URL."
+          is_displayable: False
+          is_used_by_planner: True
+        linkImageMimeType: string
+          description: "Rich link image MIME type."
+          is_displayable: False
+          is_used_by_planner: True
+        description: string
+          description: "Rich link description."
+          is_displayable: True
+          is_used_by_planner: True
+      target: "apex://CollabCreateSlackOnboardingCanvasAction"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Preparing Slack onboarding Canvas link..."
+
+topic collaboration_access_request:
+  description: "Search non-GitHub collaboration catalog options and submit approval-backed app or Slack access requests. Do not answer GitHub repository list questions here; route them to the dedicated GitHub access request topic."
+  reasoning:
+    instructions: ->
+      if @variables.collab_request_number != "":
+        | Collaboration access request {!@variables.collab_request_number} is {!@variables.collab_request_status} with approval status {!@variables.collab_approval_status}.
+        | Explain that fulfillment waits for approval when approval is pending. Do NOT claim access has been granted unless status says fulfilled.
+
+      if @variables.collab_catalog_results != "":
+        | Catalog options: {!@variables.collab_catalog_results}
+        | For Slack and Okta app access, ask the employee to choose exactly one target key or a compatible set of target keys, then provide a business justification before submission.
+        | For GitHub repository access, move to the dedicated GitHub topic so the native rich choices action can render selectable repositories. Do not offer a Screen Flow selector link.
+
+      | Help the employee request collaboration app, Slack channel, or GitHub repository access.
+      | If the employee asks for GitHub access, available GitHub repos, the full repo list, view all repos, repo options, or says they do not know the repo name, use {!@actions.show_github_repo_choices} or {!@actions.go_to_github_access_request} immediately. Do not ask for filters, team, project, area, criteria, or whether they are ready.
+      | Search the catalog first when the employee names an app, channel, or repo.
+      | Before submitting, confirm selected target keys, access level, target employee email, and business justification.
+      | Slack and Okta app requests are fulfilled directly by new collaboration flows after confirmation.
+      | GitHub repository requests do not provision access directly. They create a Service Request and submit it to Flow-Based Approvals, creating a native ApprovalSubmission and ApprovalWorkItem that can be reviewed in Slack.
+      | When the employee asks for GitHub access, move to the dedicated GitHub topic or use {!@actions.collab_submit_github_slack_approval} only after a repo choice, access level, and business justification are available. Do not use the generic submit_access_request action for GitHub.
+      | If the employee already provides a GitHub option, choice label, repository name, repository key, or option record ID, an email address, and asks to submit or proceed, immediately use {!@actions.collab_submit_github_slack_approval}. The Apex action resolves option numbers, labels, record IDs, full names, and canonical keys from Collaboration Access Option records.
+      | Never say a GitHub request "will be processed", "has been started", or "was submitted" until {!@actions.collab_submit_github_slack_approval} has run and returned a non-empty RequestNumber. If no RequestNumber is returned, say the request was not submitted yet and continue collecting the missing details.
+      | For onboarding GitHub requests, use Read access and "New employee onboarding request for role-based GitHub repository access." as the business justification unless the employee gives a more specific justification.
+    actions:
+      search_catalog: @actions.collab_search_access_catalog
+        description: "Search curated app, Slack channel, and GitHub repository catalog options."
+        with SearchText = ...
+        with Department = @variables.collab_department
+        with RoleName = @variables.collab_role
+        with TargetType = ...
+        set @variables.collab_catalog_results = @outputs.CatalogResults
+      show_github_repo_choices: @actions.collab_get_github_rich_content
+        description: "Show all available GitHub repositories immediately. Use this when the employee asks for GitHub access, available repos, repo options, full repo list, view all repos, asks which repos are available, or says they do not know the repo name. Do not ask for filters or readiness first."
+        with Department = @variables.collab_department
+        with RoleName = @variables.collab_role
+        with CanvasUrl = ""
+        with CanvasTitle = "Collaboration onboarding Canvas"
+        set @variables.collab_repo_options = @outputs.RepositoryOptionsText
+        set @variables.collab_repo_option_ids = @outputs.RepositoryOptionRecordIds
+        set @variables.collab_slack_canvas_url = @outputs.linkUrl
+        set @variables.collab_github_rich_status = @outputs.StatusMessage
+      capture_and_submit_github_request_details: @utils.setVariables
+        description: "Use this for GitHub repository access when the employee provides a repo choice, label, name, key, or record ID plus their email and asks to proceed. Set collab_target_type to GitHubRepo and prefer Collaboration Access Option record IDs when available. For onboarding GitHub choices without an explicit access level or justification, use Read access and the justification: New employee onboarding request for role-based GitHub repository access. After setting the variables, immediately run the GitHub submission action."
+        with collab_selected_item_keys = ...
+        with collab_selected_option_ids = ...
+        with collab_target_type = "GitHubRepo"
+        with collab_employee_email = ...
+        with collab_access_level = ...
+        with collab_business_justification = ...
+        with collab_pending_submission = True
+        run @actions.collab_submit_github_slack_approval
+          with RequesterEmail = @variables.collab_employee_email
+          with TargetEmployeeEmail = @variables.collab_employee_email
+          with SelectedRepositoryKeys = @variables.collab_selected_item_keys
+          with SelectedRepositoryOptionIds = @variables.collab_selected_option_ids
+          with AccessLevel = @variables.collab_access_level
+          with BusinessJustification = @variables.collab_business_justification
+          set @variables.collab_request_id = @outputs.RequestId
+          set @variables.collab_request_number = @outputs.RequestNumber
+          set @variables.collab_request_status = @outputs.RequestStatus
+          set @variables.collab_approval_status = @outputs.ApprovalStatus
+          set @variables.collab_pending_submission = False
+      capture_access_request_details: @utils.setVariables
+        description: "Capture selected item keys, target type, target employee email, requested access level, and business justification after the employee provides them for non-GitHub Slack channel, Okta app, or manual collaboration requests. Do not use this for GitHub repository choices; use capture_and_submit_github_request_details instead."
+        with collab_selected_item_keys = ...
+        with collab_target_type = ...
+        with collab_employee_email = ...
+        with collab_access_level = ...
+        with collab_business_justification = ...
+        with collab_pending_submission = True
+      submit_github_service_request: @actions.collab_submit_github_slack_approval
+        description: "Submit selected GitHub repository record IDs or keys as a Service Request and native Flow-Based Approval. Use this only after the employee has selected one or more GitHub repos, provided an access level, and provided a business justification."
+        available when @variables.collab_pending_submission == True and @variables.collab_target_type == "GitHubRepo" and @variables.collab_selected_item_keys != "" and @variables.collab_business_justification != ""
+        with RequesterEmail = @variables.collab_employee_email
+        with TargetEmployeeEmail = @variables.collab_employee_email
+        with SelectedRepositoryKeys = @variables.collab_selected_item_keys
+        with SelectedRepositoryOptionIds = @variables.collab_selected_option_ids
+        with AccessLevel = @variables.collab_access_level
+        with BusinessJustification = @variables.collab_business_justification
+        set @variables.collab_request_id = @outputs.RequestId
+        set @variables.collab_request_number = @outputs.RequestNumber
+        set @variables.collab_request_status = @outputs.RequestStatus
+        set @variables.collab_approval_status = @outputs.ApprovalStatus
+        set @variables.collab_pending_submission = False
+      submit_access_request: @actions.collab_submit_access_request
+        description: "Submit the confirmed non-GitHub collaboration access request for approval or fulfillment. Do not use this for GitHub repository requests."
+        available when @variables.collab_pending_submission == True and @variables.collab_target_type != "GitHubRepo" and @variables.collab_selected_item_keys != "" and @variables.collab_business_justification != ""
+        with RequesterEmail = @variables.collab_employee_email
+        with TargetEmployeeEmail = @variables.collab_employee_email
+        with SelectedItemKeys = @variables.collab_selected_item_keys
+        with AccessLevel = @variables.collab_access_level
+        with BusinessJustification = @variables.collab_business_justification
+        set @variables.collab_request_id = @outputs.RequestId
+        set @variables.collab_request_number = @outputs.RequestNumber
+        set @variables.collab_request_status = @outputs.RequestStatus
+        set @variables.collab_approval_status = @outputs.ApprovalStatus
+        set @variables.collab_pending_submission = False
+      go_to_github_access_request: @utils.transition to @topic.collaboration_github_access_request
+        description: "Move GitHub repository access, full repo list, available repo, and repo choice questions to the dedicated native rich choice topic. Use this immediately for any GitHub repository request before asking follow-up questions."
+      go_to_approval_status: @utils.transition to @topic.collaboration_approval_status
+        description: "Check status of a submitted collaboration access request."
+      back_to_collaboration_router: @utils.transition to @topic.collaboration_domain
+        description: "Return to collaboration routing."
+  actions:
+    collab_search_access_catalog:
+      description: "Searches curated collaboration access catalog options."
+      inputs:
+        SearchText: string
+          description: "Search text for app, Slack channel, or GitHub repository."
+        Department: string
+          description: "Employee department."
+        RoleName: string
+          description: "Employee role or title."
+        TargetType: string
+          description: "Optional target type filter: OktaApp, SlackChannel, GitHubRepo, or Manual."
+      outputs:
+        CatalogResults: string
+          description: "Selectable catalog results."
+          is_used_by_planner: True
+        CatalogRecordIds: string
+          description: "Comma-separated Collaboration Access Option record IDs returned by search."
+          is_displayable: False
+          is_used_by_planner: True
+        CatalogTargetKeys: string
+          description: "Comma-separated target keys returned by search."
+          is_displayable: False
+          is_used_by_planner: True
+        HasResults: boolean
+          description: "Whether matching entries were found."
+          is_displayable: False
+          is_used_by_planner: True
+        StatusMessage: string
+          description: "Search status."
+          is_used_by_planner: True
+      target: "apex://CollabSearchAccessCatalogAction"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Searching collaboration access catalog..."
+    collab_get_github_rich_content:
+      description: "Returns native Agentforce rich choices for record-backed GitHub repositories and a rich onboarding Canvas link."
+      inputs:
+        Department: string
+          description: "Employee department used to tailor choices."
+        RoleName: string
+          description: "Employee role used to tailor choices."
+        CanvasUrl: string
+          description: "Optional Slack Canvas URL override."
+        CanvasTitle: string
+          description: "Display title for the Slack Canvas rich link."
+      outputs:
+        items: list[object]
+          description: "Native rich choice items with name, imageUrl, mimeType, and description."
+          complex_data_type_name: "@apexClassType/c__CollabGitHubRichContentAction$ChoiceItem"
+          is_displayable: True
+          filter_from_agent: True
+        RepositoryOptionsText: string
+          description: "Text fallback with repository labels, canonical keys, and record IDs."
+          is_displayable: True
+          is_used_by_planner: True
+        RepositoryOptionRecordIds: string
+          description: "Comma-separated Collaboration Access Option record IDs for GitHub repository choices."
+          is_displayable: False
+          is_used_by_planner: True
+        RepositoryTargetKeys: string
+          description: "Comma-separated GitHub repository target keys returned with the choices."
+          is_displayable: False
+          is_used_by_planner: True
+        HasRepositoryChoices: boolean
+          description: "Whether active GitHub choices were found."
+          is_displayable: False
+          is_used_by_planner: True
+        linkTitle: string
+          description: "Rich link title for the onboarding Canvas."
+          is_displayable: True
+          is_used_by_planner: True
+        linkUrl: string
+          description: "Rich link URL for the onboarding Canvas."
+          is_displayable: True
+          is_used_by_planner: True
+        linkImageUrl: string
+          description: "Rich link image URL."
+          is_displayable: False
+          is_used_by_planner: True
+        linkImageMimeType: string
+          description: "Rich link image MIME type."
+          is_displayable: False
+          is_used_by_planner: True
+        description: string
+          description: "Rich link description."
+          is_displayable: True
+          is_used_by_planner: True
+        StatusMessage: string
+          description: "Rich content generation status."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "apex://CollabGitHubRichContentAction"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Loading GitHub repository choices..."
+    collab_submit_access_request:
+      description: "Creates collaboration access request records for approval and fulfillment."
+      inputs:
+        RequesterEmail: string
+        TargetEmployeeEmail: string
+        SelectedItemKeys: string
+          description: "Selected access target key. For GitHub, use the repository label, full name, option number, or canonical key returned by Collaboration Access Catalog metadata."
+          is_user_input: True
+        AccessLevel: string
+          description: "Requested access level. Use Read for GitHub onboarding unless the employee asks for a different level."
+          is_user_input: True
+        BusinessJustification: string
+          description: "Business justification. For GitHub onboarding choices without a separate justification, use: New employee onboarding request for role-based GitHub repository access."
+          is_user_input: True
+      outputs:
+        RequestId: string
+          is_displayable: False
+          is_used_by_planner: True
+        RequestNumber: string
+          is_used_by_planner: True
+        RequestStatus: string
+          is_used_by_planner: True
+        ApprovalStatus: string
+          is_used_by_planner: True
+        StatusMessage: string
+          is_used_by_planner: True
+      target: "flow://Collab_Submit_Access_Request"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Submitting collaboration access request..."
+    collab_submit_github_slack_approval:
+      description: "Creates a Service Request and submits a native Flow-Based Approval for selected GitHub repository keys. Use immediately when the employee provides a GitHub option or repo key plus their email and asks to proceed. Do not merely say the request will be processed."
+      label: "Submit GitHub Access Request"
+      require_user_confirmation: True
+      inputs:
+        RequesterEmail: string
+          description: "Requester email from employee context."
+          is_required: False
+          is_user_input: True
+        TargetEmployeeEmail: string
+          description: "Target employee email from employee context."
+          is_required: False
+          is_user_input: True
+        SelectedRepositoryKeys: string
+          description: "Comma-separated GitHub target keys, labels, option numbers, repo names, or record IDs to submit."
+          is_required: True
+          is_user_input: True
+        SelectedRepositoryOptionIds: string
+          description: "Comma-separated Collaboration Access Option record IDs to submit."
+          is_required: False
+          is_user_input: True
+        AccessLevel: string
+          description: "Requested access level. Use Read for onboarding requests unless the employee asks for another level."
+          is_required: True
+          is_user_input: True
+        BusinessJustification: string
+          description: "Business justification for admin approval."
+          is_required: True
+          is_user_input: True
+      outputs:
+        RequestId: string
+          is_displayable: False
+          is_used_by_planner: True
+        RequestNumber: string
+          is_used_by_planner: True
+        RequestStatus: string
+          is_used_by_planner: True
+        ApprovalStatus: string
+          is_used_by_planner: True
+        SelectedRepositoryKeys: string
+          is_used_by_planner: True
+        SelectedRepositoryOptionIds: string
+          is_used_by_planner: True
+        StatusMessage: string
+          is_used_by_planner: True
+        SlackStatus: string
+          is_used_by_planner: True
+      target: "apex://CollabSubmitGitHubRepoSelectionAction"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Submitting GitHub repository approval request..."
+
+topic collaboration_deprovisioning:
+  description: "Audit underused collaboration access and submit approval-backed removal requests."
+  reasoning:
+    instructions: ->
+      if @variables.collab_deprovision_request_number != "":
+        | Deprovisioning request {!@variables.collab_deprovision_request_number} was submitted. Approval status: {!@variables.collab_approval_status}.
+        | Make clear that access will not be removed until approval and fulfillment complete.
+
+      if @variables.collab_underused_access_summary != "":
+        | Underused access recommendations: {!@variables.collab_underused_access_summary}
+        | Ask the employee to confirm the exact target keys to submit for deprovisioning approval. Do not remove access directly.
+
+      | Help review collaboration access that appears unused. Default to a 90 day threshold unless the employee specifies a different number of days.
+      | Removal is higher risk than assignment, so require explicit confirmation and business justification before submitting a deprovisioning request.
+    actions:
+      capture_underuse_threshold: @utils.setVariables
+        description: "Capture the inactivity threshold in days when the employee specifies it."
+        with collab_underuse_threshold_days = ...
+      audit_underused_access: @actions.collab_audit_underused_access
+        description: "Find underused collaboration access from access snapshots."
+        with EmployeeEmail = ...
+        with ThresholdDays = @variables.collab_underuse_threshold_days
+        with TargetType = ...
+        set @variables.collab_underused_access_summary = @outputs.UnderusedAccessSummary
+        set @variables.collab_deprovision_item_keys = @outputs.RecommendedRemovalItemKeys
+      capture_deprovision_confirmation: @utils.setVariables
+        description: "Capture exact target keys and justification after the employee confirms deprovisioning submission."
+        available when @variables.collab_underused_access_summary != ""
+        with collab_deprovision_item_keys = ...
+        with collab_employee_email = ...
+        with collab_business_justification = ...
+        with collab_pending_deprovision = True
+      submit_deprovision_request: @actions.collab_submit_deprovision_request
+        description: "Submit confirmed collaboration deprovisioning request for approval."
+        available when @variables.collab_pending_deprovision == True and @variables.collab_deprovision_item_keys != "" and @variables.collab_business_justification != ""
+        with RequesterEmail = @variables.collab_employee_email
+        with TargetEmployeeEmail = @variables.collab_employee_email
+        with SelectedItemKeys = @variables.collab_deprovision_item_keys
+        with BusinessJustification = @variables.collab_business_justification
+        set @variables.collab_request_id = @outputs.RequestId
+        set @variables.collab_deprovision_request_number = @outputs.RequestNumber
+        set @variables.collab_request_status = @outputs.RequestStatus
+        set @variables.collab_approval_status = @outputs.ApprovalStatus
+        set @variables.collab_pending_deprovision = False
+      back_to_collaboration_router: @utils.transition to @topic.collaboration_domain
+        description: "Return to collaboration routing."
+  actions:
+    collab_audit_underused_access:
+      description: "Finds collaboration access snapshots that appear underused beyond a threshold."
+      inputs:
+        EmployeeEmail: string
+        ThresholdDays: string
+        TargetType: string
+      outputs:
+        UnderusedAccessSummary: string
+          is_used_by_planner: True
+        RecommendedRemovalItemKeys: string
+          is_displayable: False
+          is_used_by_planner: True
+        ProtectedItemKeys: string
+          is_displayable: False
+          is_used_by_planner: True
+        StatusMessage: string
+          is_used_by_planner: True
+      target: "flow://Collab_Audit_Underused_Access"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Auditing underused collaboration access..."
+    collab_submit_deprovision_request:
+      description: "Creates approval-tracked collaboration deprovisioning request records."
+      inputs:
+        RequesterEmail: string
+        TargetEmployeeEmail: string
+        SelectedItemKeys: string
+        BusinessJustification: string
+      outputs:
+        RequestId: string
+          is_displayable: False
+          is_used_by_planner: True
+        RequestNumber: string
+          is_used_by_planner: True
+        RequestStatus: string
+          is_used_by_planner: True
+        ApprovalStatus: string
+          is_used_by_planner: True
+        StatusMessage: string
+          is_used_by_planner: True
+      target: "flow://Collab_Submit_Deprovision_Request"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Submitting collaboration deprovisioning request..."
+
+topic collaboration_approval_status:
+  description: "Look up collaboration access and deprovisioning request status."
+  reasoning:
+    instructions: ->
+      if @variables.collab_request_status != "":
+        | Request status: {!@variables.collab_request_status}. Approval status: {!@variables.collab_approval_status}.
+        | Explain the next step based on the status. Do not claim fulfillment is complete unless the status says fulfilled.
+
+      | Help the employee check collaboration request status. Ask for a request number if they have one; otherwise look up recent requests.
+    actions:
+      get_request_status: @actions.collab_get_request_status
+        description: "Look up a collaboration request by number or recent requester context."
+        with RequestNumber = ...
+        with RequesterEmail = @variables.collab_employee_email
+        set @variables.collab_request_status = @outputs.RequestStatus
+        set @variables.collab_approval_status = @outputs.ApprovalStatus
+      back_to_collaboration_router: @utils.transition to @topic.collaboration_domain
+        description: "Return to collaboration routing."
+  actions:
+    collab_get_request_status:
+      description: "Retrieves collaboration access request status for an employee."
+      inputs:
+        RequestNumber: string
+        RequesterEmail: string
+      outputs:
+        RequestSummary: string
+          is_used_by_planner: True
+        RequestStatus: string
+          is_used_by_planner: True
+        ApprovalStatus: string
+          is_used_by_planner: True
+        FulfillmentStatus: string
+          is_used_by_planner: True
+        StatusMessage: string
+          is_used_by_planner: True
+      target: "flow://Collab_Get_Request_Status"
+      include_in_progress_indicator: True
+      progress_indicator_message: "Checking collaboration request status..."
+
+topic network_domain:
+  description: "Select the network-management domain and hand off to shared IT intake."
+  reasoning:
+    instructions: ->
+      set @variables.current_domain = "network"
+      set @variables.current_topic_api_name = "NetworkManagement"
+      set @variables.current_scope_hint = "Wi-Fi, VPN, internet access, proxy, remote connectivity, MFA, SSO, Okta, and directory access."
+      transition to @topic.shared_service_request_intake
+
+topic hardware_domain:
+  description: "Select the hardware-management domain and hand off to shared IT intake."
+  reasoning:
+    instructions: ->
+      set @variables.current_domain = "hardware"
+      set @variables.current_topic_api_name = "HardwareManagement"
+      set @variables.current_scope_hint = "Laptops, desktops, monitors, keyboards, printers, peripherals, device setup, hardware incidents, and assigned assets."
+      transition to @topic.shared_service_request_intake
+
+topic employee_lifecycle_domain:
+  description: "Select HR-style employee lifecycle changes and hand off to shared IT intake."
+  reasoning:
+    instructions: ->
+      set @variables.current_domain = "employee lifecycle"
+      set @variables.current_topic_api_name = "EmployeeLifecycleManagement"
+      set @variables.current_scope_hint = "Offboarding, promotions, transfers, manager changes, resignations, and formal employment-status access-change requests. New-hire onboarding, Slack setup, app suggestions, and GitHub access belong to collaboration management."
+      transition to @topic.shared_service_request_intake
+
+topic compliance_domain:
+  description: "Select the compliance-management domain and hand off to shared IT intake."
+  reasoning:
+    instructions: ->
+      set @variables.current_domain = "compliance"
+      set @variables.current_topic_api_name = "ComplianceManagement"
+      set @variables.current_scope_hint = "Compliance, privacy, policy adherence, governance, audit support, and mandatory reporting or training requests."
+      transition to @topic.shared_service_request_intake
+
+topic shared_service_request_intake:
+  description: "Shared intake for new IT issues and managed service-request workflows across all IT domains."
+  reasoning:
+    instructions: ->
+      if @variables.last_jira_create_result != "":
+        | Reuse this Jira create result when it directly answers the employee's follow-up: {!@variables.last_jira_create_result}
+
+      if @variables.last_salesforce_incident_number != "":
+        | Reuse this latest Salesforce incident number when it directly helps the employee: {!@variables.last_salesforce_incident_number}
+
+      if @variables.launch_card_url != "":
+        | A launch card is available for {!@variables.launch_card_name}. Share the launch link and explain that the employee can finish the complex request there: {!@variables.launch_card_url}
+        set @variables.launch_card_url = ""
+        set @variables.launch_card_name = ""
+
+      | You are handling the {!@variables.current_domain} domain.
+      | Scope reminder: {!@variables.current_scope_hint}
+      | For demo scenarios, when an employee asks to create, log, open, submit, or file a new ticket, service request, Jira issue, or incident, create both records: Jira first, then Salesforce Incident second.
+      | Treat Jira as mandatory for every new operational IT issue that should be logged. Only skip Jira when the employee is only asking a how-to question, checking an existing ticket, asking about policy, or using a direct fulfillment path that does not need a ticket.
+      | After Jira is created successfully, use the same issue context to create the Salesforce Incident shadow record in the same turn whenever enough detail is available.
+      | Start with knowledge for troubleshooting, how-to guidance, and informational questions when the employee is mainly asking for help or diagnostics.
+      | If the employee explicitly asks to create, log, open, or submit a Jira ticket or incident now, do not force a knowledge-first step.
+      | When the employee clearly wants a new Jira-backed issue created now, call {!@actions.create_jira_issue_now} as the first operational action in the turn, then call {!@actions.create_incident_now} after Jira succeeds.
+      | Do not call {!@actions.search_knowledge}, {!@actions.search_catalog}, {!@actions.create_service_request}, {!@actions.create_incident_now}, or {!@actions.create_incident_from_saved_context} before {!@actions.create_jira_issue_now} in that same turn.
+      | Do not stop after Jira creation during demo-style create/log requests; create the Salesforce Incident as the second record unless required details are missing.
+      | If the issue is clearly urgent, high-impact, security-sensitive, device-blocking, or preventing the employee from working, prefer incident creation over extra troubleshooting.
+      | If knowledge resolves the issue, confirm the employee is done and do not create a new incident or request unless they still want one logged.
+      | If knowledge does not resolve the issue, use {!@actions.get_eligible_service_catalog_items} to identify whether this is a catalog-backed request.
+      | When there is one strong catalog match, confirm only the item name with the employee before collecting attribute values.
+      | For SIMPLE catalog items, use {!@actions.get_svc_catalog_attributes}, collect all required values except subject and reportedBy, and then use {!@actions.create_service_catalog_request}.
+      | For COMPLEX catalog items, use {!@actions.get_product_launch_card} and share the returned launch URL instead of manually collecting fields.
+      | For operational incidents that should be tracked in Jira, use {!@actions.create_jira_issue_now} first so Jira remains the primary backend.
+      | After Jira issue creation, create the Salesforce Incident shadow record with {!@actions.create_incident_now} when the current turn has the issue context, or {!@actions.create_incident_from_saved_context} when the context was stored from an earlier turn.
+      | When using the direct Jira create action, provide a concise Jira summary, a fuller description, and the best available priority and Impact/Urgency/Severity option ids. Use Medium defaults when the user does not express stronger urgency.
+      | If you expect a later confirmation turn, call {!@actions.store_incident_context} to save a concise summary of the underlying issue, affected device or system, and key symptoms before asking whether an incident should be created.
+      | Use {!@actions.create_incident_now} when the employee is already asking to log the issue now and the current utterance contains enough detail to create the incident directly.
+      | Use {!@actions.create_incident_from_saved_context} when the employee confirms incident creation after prior discussion and the current utterance is mostly just confirmation text.
+      | After the Jira create action succeeds, tell the employee that the Jira-backed issue was created and include the Jira key if available.
+      | After the Salesforce incident action succeeds, include the returned incident number and explain that it is the internal Salesforce tracking record for the same issue.
+      | If the employee is really asking about an existing ticket, route to ticket follow-up instead of staying in new-request intake.
+      | If the employee is asking about currently assigned hardware, acknowledge that direct assigned-asset lookup is not yet wired in this first migration cut and help them with the surrounding hardware request or route them to human support.
+    actions:
+      store_incident_context: @utils.setVariables
+        description: "Store a concise summary of the employee's issue before asking whether an incident should be created."
+        with pending_incident_context = ...
+      search_knowledge: @actions.answer_questions_with_knowledge
+        description: "Search managed IT knowledge and share grounded guidance for the active domain request."
+        with query = @system_variables.user_input
+        with citationsUrl = ""
+        with ragFeatureConfigId = "AiRagFeaturePromptContent_9a1af33c_641d_445e_9713_8b619182a610"
+        with citationsEnabled = False
+      search_catalog: @actions.get_eligible_service_catalog_items
+        description: "Classify the current domain request against the managed service catalog."
+        with queryDescription = @system_variables.user_input
+        with topicName = @variables.current_topic_api_name
+        with channelType = ""
+        with messagingChannelId = ""
+      load_catalog_attributes: @actions.get_svc_catalog_attributes
+        description: "Load the required attributes for the selected service catalog item after the employee confirms the item."
+        with productId = ...
+      create_service_request: @actions.create_service_catalog_request
+        description: "Create a service request after all required attributes are collected and validated."
+        with productId = ...
+        with sciAttributes = ...
+      get_launch_card: @actions.get_product_launch_card
+        description: "Open the launch-card experience for a complex catalog item."
+        with productId = ...
+        with siteName = ""
+        with channelType = ""
+        set @variables.launch_card_url = @outputs.launchUrl
+        set @variables.launch_card_name = @outputs.productName
+      create_jira_issue_now: @actions.create_jira_issue
+        description: "Create a Jira issue for the employee's current operational incident so Jira remains the primary backend."
+        with jiraSummary = ...
+        with jiraDescription = @system_variables.user_input
+        with jiraPriority = ...
+        with jiraUrgencyOptionId = ...
+        with jiraImpactOptionId = ...
+        with jiraSeverityOptionId = ...
+        with requesterEmail = ""
+        with channel = "Agentforce Employee Assistant"
+        with sourceReference = ""
+        with reporterSalesforceUsername = ""
+        set @variables.last_jira_create_result = @outputs.message
+        set @variables.pending_jira_issue_key = @outputs.jiraIssueKey
+      create_incident_now: @actions.create_incident_for_employee
+        description: "Create a new employee IT incident immediately when the employee is clearly asking to log the issue now and the current turn already describes the problem."
+        with chatContext = @system_variables.user_input
+        set @variables.last_salesforce_incident_number = @outputs.IncidentNumber
+        set @variables.pending_incident_context = ""
+      create_incident_from_saved_context: @actions.create_incident_for_employee
+        description: "Create a new employee IT incident after prior troubleshooting or follow-up when the issue summary was already stored."
+        with chatContext = @variables.pending_incident_context
+        set @variables.last_salesforce_incident_number = @outputs.IncidentNumber
+        set @variables.pending_incident_context = ""
+      go_to_ticket_followup: @utils.transition to @topic.ticket_followup
+        description: "Move to existing ticket follow-up when the employee asks about an existing incident, case, or service request."
+      go_to_policy_query: @utils.transition to @topic.policy_query
+        description: "Move to policy query when the employee switches into company policy or benefits questions."
+      go_to_escalation: @utils.transition to @topic.escalation
+        description: "Move to escalation when the employee explicitly wants human assistance."
+      back_to_router: @utils.transition to @topic.topic_router
+        description: "Return to the main router when the conversation changes topics."
+
+  actions:
+    answer_questions_with_knowledge:
+      description: "Search managed IT knowledge and summarize grounded guidance for the employee's current issue or how-to request."
+      inputs:
+        query: string
+          description: "The employee's natural-language issue description or question."
+          is_required: True
+          is_user_input: True
+        citationsUrl: string
+          description: "Optional citations URL override for custom surfaces."
+        ragFeatureConfigId: string
+          description: "Managed RAG feature configuration for the knowledge-answer action."
+        citationsEnabled: boolean
+          description: "Whether citations should be included in the managed response."
+      outputs:
+        knowledgeSummary: object
+          description: "Grounded knowledge summary for the current request."
+          complex_data_type_name: "lightning__richTextType"
+          is_displayable: False
+          is_used_by_planner: True
+        citationSources: object
+          description: "Citation sources returned by the managed knowledge answer action."
+          complex_data_type_name: "@apexClassType/AiCopilot__GenAiCitationInput"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "standardInvocableAction://streamKnowledgeSearch"
+      source: "EmployeeCopilot__AnswerQuestionsWithKnowledge"
+
+    get_eligible_service_catalog_items:
+      description: "Classify the current request into eligible service catalog items for the active IT domain."
+      inputs:
+        queryDescription: string
+          description: "The employee request to classify into service catalog options."
+          is_required: True
+        topicName: string
+          description: "Legacy Builder topic API name for the active domain."
+          is_required: True
+        channelType: string
+          description: "Optional channel type for managed messaging-based experiences."
+        messagingChannelId: string
+          description: "Optional messaging channel identifier used by the legacy managed action."
+      outputs:
+        serviceCtlgItemsList: list[object]
+          description: "Eligible service catalog items returned for the current request."
+          complex_data_type_name: "@apexClassType/svc_emp_intelligence__GetEligSvcCtlgItemsApex"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "standardInvocableAction://getEligSvcCtlgItems"
+      source: "svc_emp_intelligence__GetEligibleServiceCatalogItems"
+
+    get_svc_catalog_attributes:
+      description: "Load required attributes for a selected service catalog item before a request is created."
+      inputs:
+        productId: id
+          description: "Service catalog item record identifier."
+          is_required: True
+      outputs:
+        svcCatalogItmAttributes: list[object]
+          description: "Service catalog attributes that must be collected for the selected item."
+          complex_data_type_name: "@apexClassType/svc_emp_intelligence__ServiceCatalogItemAttributeApex"
+          is_displayable: False
+          is_used_by_planner: True
+      target: "standardInvocableAction://getSvcCtlgAttributes"
+      source: "svc_emp_intelligence__GetSvcCatalogAttributes"
+
+    create_service_catalog_request:
+      description: "Create a managed service request after the required service catalog attributes are collected."
+      inputs:
+        productId: id
+          description: "Service catalog item record identifier."
+          is_required: True
+        sciAttributes: list[object]
+          description: "Fully populated service catalog attribute payload for the selected item."
+          complex_data_type_name: "@apexClassType/svc_emp_intelligence__ServiceCatalogItemAttributeDataApex"
+      outputs:
+        requestStatus: string
+          description: "Request-creation status."
+          is_displayable: False
+          is_used_by_planner: True
+        createdTicket: object
+          description: "Created ticket metadata when the request succeeds."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_displayable: True
+          is_used_by_planner: True
+        requiredAttributes: list[string]
+          description: "Any required attributes that were missing or invalid."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "standardInvocableAction://createSvcCatalogReq"
+      source: "svc_emp_intelligence__CreateServiceCatalogRequest"
+
+    get_product_launch_card:
+      description: "Return the launch URL and display details for a complex service catalog item."
+      inputs:
+        productId: string
+          description: "Selected product or process identifier."
+          is_required: True
+        siteName: string
+          description: "Optional site context for launch-card generation."
+        channelType: string
+          description: "Optional channel type for launch-card generation."
+      outputs:
+        launchUrl: string
+          description: "Launch URL for the complex request."
+          is_displayable: True
+          is_used_by_planner: True
+        productName: string
+          description: "Display name of the complex service item."
+          is_displayable: True
+          is_used_by_planner: True
+        imageUrl: string
+          description: "Image associated with the product launch card."
+          is_displayable: True
+          is_used_by_planner: True
+        productDesc: string
+          description: "Description of the complex service item."
+          is_displayable: True
+          is_used_by_planner: True
+      target: "standardInvocableAction://getDynamicEnhancedLink"
+      source: "sc_enterprise_catalog__GetProductLaunchCard"
+
+    create_incident_for_employee:
+      description: "Create a new employee IT incident after the employee explicitly agrees to incident creation."
+      inputs:
+        chatContext: string
+          description: "Conversation context used by the managed incident-creation action."
+          is_required: True
+      outputs:
+        IncidentNumber: string
+          description: "Identifier of the created incident."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "standardInvocableAction://createIncidentForRequestor"
+      source: "svc_emp_intelligence__CreateIncidentForEmployee"
+
+    create_jira_issue:
+      description: "Create a Jira issue directly through Jira REST so Jira remains the operational backend."
+      inputs:
+        jiraSummary: string
+          description: "Short Jira summary for the employee's issue."
+          is_required: True
+        jiraDescription: string
+          description: "Detailed Jira description for the employee's issue."
+          is_required: True
+        jiraPriority: string
+          description: "Jira priority name, such as Low, Medium, High, or Highest."
+        jiraUrgencyOptionId: string
+          description: "Jira urgency option id. Critical=10020, High=10021, Medium=10022, Low=10023."
+        jiraImpactOptionId: string
+          description: "Jira impact option id. Extensive=10000, Significant=10001, Moderate=10002, Minor=10003."
+        jiraSeverityOptionId: string
+          description: "Jira severity option id. Sev-0=10028, Sev-1=10029, Sev-2=10030, Sev-3=10031."
+        requesterEmail: string
+          description: "Requester email when available."
+        channel: string
+          description: "Origin channel for the issue."
+        sourceReference: string
+          description: "Optional source reference for correlation."
+        reporterSalesforceUsername: string
+          description: "Optional Salesforce username override for resolving the Jira reporter account mapping. Leave blank to use the running Salesforce username."
+      outputs:
+        isSuccess: boolean
+          description: "Whether Jira issue creation succeeded."
+          is_displayable: False
+          is_used_by_planner: True
+        message: string
+          description: "Result message returned by the direct Jira create action."
+          is_displayable: False
+          is_used_by_planner: True
+        jiraIssueKey: string
+          description: "Created Jira issue key when the create succeeds."
+          is_displayable: False
+          is_used_by_planner: True
+        jiraIssueId: string
+          description: "Created Jira issue id when the create succeeds."
+          is_displayable: False
+          is_used_by_planner: True
+        jiraIssueUrl: string
+          description: "Browse URL for the created Jira issue when configured."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "apex://JiraCreateIssueAction"
+
+topic ticket_followup:
+  description: "Handle follow-up on existing Jira issues, incidents, service requests, and cases."
+  reasoning:
+    instructions: ->
+      if @variables.last_ticket_summary != "":
+        | Reuse this ticket summary when it directly answers the employee's follow-up: {!@variables.last_ticket_summary}
+
+      if @variables.last_ticket_action_result != "":
+        | Reuse this ticket-action result when it directly answers the employee's follow-up: {!@variables.last_ticket_action_result}
+
+      if @variables.last_ticket_search_results != "":
+        | Use these ticket search results exactly as returned when helping the employee choose the correct record: {!@variables.last_ticket_search_results}
+
+      if @variables.last_jira_lookup_result != "":
+        | Reuse this Jira lookup result when it directly answers the employee's follow-up: {!@variables.last_jira_lookup_result}
+
+      if @variables.last_jira_update_result != "":
+        | Reuse this Jira update result when it directly answers the employee's follow-up: {!@variables.last_jira_update_result}
+
+      | Handle follow-up on existing Jira issues, incidents, service requests, and cases.
+      | Jira is the preferred operational source of truth when the employee provides an exact Jira key such as IT-123.
+      | Use neutral, employee-friendly phrasing when summarizing Jira results. Prefer concise sentences over raw field dumps.
+      | Jira lookup outputs can include priority, recent comments, field-history changes, closed-ticket signals, and a latest-update summary. Prefer that Jira context when the employee asks what changed recently.
+      | If the employee provides an exact Jira key, store it, keep the conversation anchored to Jira terminology, and use {!@actions.fetch_jira_issue_by_key} before summarizing or updating the Jira-backed ticket.
+      | If the employee asks for their own open Jira issues and does not name a specific key, use {!@actions.fetch_my_open_jira_issues} first.
+      | If a Jira lookup shows the issue is already closed or resolved, say that plainly. Offer to add a follow-up comment or create a new request if the issue returned. Do not imply that direct Jira reopen support exists unless the employee explicitly asks for a Jira-side change and the returned Jira data suggests a valid path.
+      | If the employee provides a Salesforce incident number, service request, or case instead of a Jira key, use {!@actions.identify_record_by_name} and the existing Salesforce follow-up actions.
+      | If the employee wants a status update or summary but does not name a specific Jira key or Salesforce ticket, use the matching {!@actions.get_relevant_tickets_by_description} search action first.
+      | If exactly one relevant ticket is clear from the search results, continue with that ticket instead of asking "which ticket."
+      | If multiple tickets are plausible, ask the employee to choose the ticket before using summarize, reopen, or comment actions.
+      | Use {!@actions.update_selected_jira_ticket} only when the employee clearly wants to change Jira-backed details and an exact Jira key is already known.
+      | Use {!@actions.add_comment_to_ticket} and {!@actions.reopen_ticket} for Salesforce-managed tickets. Use {!@actions.update_selected_jira_ticket} for direct Jira comments or field changes when an exact Jira key is known.
+      | Before {!@actions.reopen_ticket}, explicitly confirm that the employee wants to reopen the selected ticket.
+      | Before {!@actions.add_comment_to_ticket} or a Jira comment through {!@actions.update_selected_jira_ticket}, explicitly confirm both the chosen ticket and the exact comment text. Never rewrite the comment without reconfirming it.
+      | If the request is actually a new issue or service request, route back to shared service intake.
+    actions:
+      store_explicit_jira_key: @utils.setVariables
+        description: "Store an exact Jira key such as IT-123 when the employee provides it."
+        with pending_jira_issue_key = ...
+      fetch_jira_issue_by_key: @actions.get_jira_issue_by_key
+        description: "Read a Jira-backed ticket directly when the employee provides an exact Jira key."
+        available when @variables.pending_jira_issue_key != ""
+        with jiraIssueKey = @variables.pending_jira_issue_key
+        set @variables.last_jira_lookup_result = @outputs.message
+      fetch_my_open_jira_issues: @actions.get_my_open_jira_issues
+        description: "Find the current employee's open Jira issues by reporter mapping when they ask about their own Jira tickets or recent Jira updates."
+        with reporterSalesforceUsername = ""
+        with maxResults = 5
+        set @variables.last_jira_lookup_result = @outputs.issuesSummary
+      identify_ticket: @actions.identify_record_by_name
+        description: "Resolve a named ticket or ticket number into a concrete ticket record."
+        with recordName = ...
+        with objectApiName = ""
+      search_tickets_for_status: @actions.get_relevant_tickets_by_description
+        description: "Search relevant tickets when the employee wants a ticket update or summary."
+        with userQuery = @system_variables.user_input
+        with useCase = "ticketStatusUpdate"
+        set @variables.last_ticket_search_results = @outputs.relevantTickets
+      search_tickets_for_reopen: @actions.get_relevant_tickets_by_description
+        description: "Search relevant tickets when the employee wants to reopen a ticket."
+        with userQuery = @system_variables.user_input
+        with useCase = "reopenTicket"
+        set @variables.last_ticket_search_results = @outputs.relevantTickets
+      search_tickets_for_comment: @actions.get_relevant_tickets_by_description
+        description: "Search relevant tickets when the employee wants to add a comment."
+        with userQuery = @system_variables.user_input
+        with useCase = "addCommentToTicket"
+        set @variables.last_ticket_search_results = @outputs.relevantTickets
+      summarize_ticket: @actions.summarize_ticket_for_employee
+        description: "Summarize a selected ticket after the correct record has been identified."
+        with "Input:recordId" = ...
+        set @variables.last_ticket_summary = @outputs.promptResponse
+      store_exact_comment_text: @utils.setVariables
+        description: "Store the exact comment text after the employee confirms the wording."
+        with pending_comment_text = ...
+      mark_comment_confirmed: @utils.setVariables
+        description: "Mark that the employee explicitly confirmed both the exact comment text and the target ticket."
+        with comment_confirmed = True
+      mark_reopen_confirmed: @utils.setVariables
+        description: "Mark that the employee explicitly confirmed reopening the selected ticket."
+        with reopen_confirmed = True
+      add_comment: @actions.add_comment_to_ticket
+        description: "Add the approved comment to the selected ticket after explicit confirmation."
+        available when @variables.comment_confirmed == True and @variables.pending_comment_text != ""
+        with recordID = ...
+        with commentText = @variables.pending_comment_text
+        set @variables.last_ticket_action_result = @outputs.outputMessage
+      reopen_selected_ticket: @actions.reopen_ticket
+        description: "Reopen the selected ticket after explicit confirmation."
+        available when @variables.reopen_confirmed == True
+        with recordId = ...
+        set @variables.last_ticket_action_result = @outputs.resultSummary
+      update_selected_jira_ticket: @actions.update_jira_issue
+        description: "Update a Jira-backed ticket when an exact Jira key is known and the employee wants the Jira record changed."
+        available when @variables.pending_jira_issue_key != ""
+        with jiraIssueIdOrKey = @variables.pending_jira_issue_key
+        with jiraSummary = ...
+        with jiraImpactOptionId = ...
+        with jiraUrgencyOptionId = ...
+        with jiraSeverityOptionId = ...
+        with commentText = @variables.pending_comment_text
+        set @variables.last_jira_update_result = @outputs.message
+      clear_followup_state: @utils.setVariables
+        description: "Clear stored follow-up confirmation state after the employee changes course or after a follow-up action completes."
+        with pending_comment_text = ""
+        with comment_confirmed = False
+        with reopen_confirmed = False
+        with pending_jira_issue_key = ""
+      go_to_shared_intake: @utils.transition to @topic.shared_service_request_intake
+        description: "Return to shared intake when the request is for a new issue or a new service request."
+      go_to_policy_query: @utils.transition to @topic.policy_query
+        description: "Move to policy query if the employee switches to a company-policy question."
+      go_to_escalation: @utils.transition to @topic.escalation
+        description: "Move to escalation if the employee explicitly wants human help."
+      back_to_router: @utils.transition to @topic.topic_router
+        description: "Return to the main router when the conversation changes topics."
+
+  actions:
+    identify_record_by_name:
+      description: "Resolve a ticket number or record name into Salesforce ticket records before follow-up actions run."
+      inputs:
+        recordName: string
+          description: "Ticket number or record name provided by the employee."
+          is_required: True
+          is_user_input: True
+        objectApiName: string
+          description: "Optional object API name if the ticket object is already known."
+      outputs:
+        searchResults: list[object]
+          description: "Matching record candidates ranked by relevance."
+          complex_data_type_name: "lightning__recordInfoType"
+          is_displayable: True
+          is_used_by_planner: True
+      target: "standardInvocableAction://identifyRecordByName"
+      source: "EmployeeCopilot__IdentifyRecordByName"
+
+    get_relevant_tickets_by_description:
+      description: "Search for the employee's relevant tickets when they describe a problem instead of naming a specific record."
+      inputs:
+        userQuery: string
+          description: "Employee description used to find matching tickets."
+          is_required: True
+          is_user_input: True
+        useCase: string
+          description: "Use case that shapes the ticket search behavior."
+          is_required: True
+      outputs:
+        relevantTickets: string
+          description: "Formatted relevant ticket results."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "flow://svc_emp_intelligence__GetTcktsByDesc"
+      source: "svc_emp_intelligence__GetRelevantTicketsByDescription"
+
+    summarize_ticket_for_employee:
+      description: "Summarize the current state of a selected ticket for the employee."
+      inputs:
+        "Input:recordId": string
+          description: "Record identifier of the selected ticket."
+          is_required: True
+      outputs:
+        promptResponse: string
+          description: "Prompt-generated ticket summary."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "generatePromptResponse://svc_emp_intelligence__SummarizeRecord"
+      source: "svc_emp_intelligence__SummarizeTicketForEmployee"
+
+    reopen_ticket:
+      description: "Reopen a selected ticket after the employee explicitly confirms the reopen request."
+      inputs:
+        recordId: object
+          description: "Record identifier of the ticket to reopen."
+          complex_data_type_name: "lightning__recordIdType"
+          is_required: True
+      outputs:
+        resultSummary: string
+          description: "Result of the reopen action."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "flow://svc_emp_intelligence__ReopenTicket"
+      source: "svc_emp_intelligence__ReopenTicket"
+
+    add_comment_to_ticket:
+      description: "Add an employee-approved comment to a selected ticket."
+      inputs:
+        recordID: object
+          description: "Record identifier of the ticket to update."
+          complex_data_type_name: "lightning__recordIdType"
+          is_required: True
+        commentText: string
+          description: "Exact comment text approved by the employee."
+          is_required: True
+      outputs:
+        outputMessage: string
+          description: "Result of the comment action."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "flow://svc_emp_intelligence__AddCmntToTkt"
+      source: "svc_emp_intelligence__AddCommentToTicket"
+
+    get_jira_issue_by_key:
+      description: "Read a Jira issue directly by exact Jira key, including recent update context from Jira comments and field history when available."
+      inputs:
+        jiraIssueKey: string
+          description: "Exact Jira issue key."
+          is_required: True
+      outputs:
+        isSuccess: boolean
+          description: "Whether the Jira issue lookup succeeded."
+          is_displayable: False
+          is_used_by_planner: True
+        message: string
+          description: "Planner-friendly Jira issue summary."
+          is_displayable: False
+          is_used_by_planner: True
+        jiraIssueKey: string
+          description: "Jira issue key returned by the direct lookup."
+          is_displayable: False
+          is_used_by_planner: True
+        jiraIssueId: string
+          description: "Jira issue id returned by the direct lookup."
+          is_displayable: False
+          is_used_by_planner: True
+        jiraSummary: string
+          description: "Jira issue summary returned by the direct lookup."
+          is_displayable: False
+          is_used_by_planner: True
+        jiraStatus: string
+          description: "Jira issue status returned by the direct lookup."
+          is_displayable: False
+          is_used_by_planner: True
+        jiraPriority: string
+          description: "Jira issue priority returned by the direct lookup."
+          is_displayable: False
+          is_used_by_planner: True
+        jiraResolution: string
+          description: "Jira resolution returned by the direct lookup when the issue is already resolved or closed."
+          is_displayable: False
+          is_used_by_planner: True
+        isClosed: boolean
+          description: "Whether the Jira issue appears closed or resolved."
+          is_displayable: False
+          is_used_by_planner: True
+        latestUpdateSummary: string
+          description: "Concise latest-update summary derived from the newest Jira comment or field-history event."
+          is_displayable: False
+          is_used_by_planner: True
+        recentCommentsSummary: string
+          description: "Recent Jira comments or internal notes returned by the direct lookup."
+          is_displayable: False
+          is_used_by_planner: True
+        recentHistorySummary: string
+          description: "Recent Jira field-history changes returned by the direct lookup."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "apex://JiraGetIssueByKeyAction"
+
+    get_my_open_jira_issues:
+      description: "Find the current employee's open Jira issues by mapping Salesforce username to a Jira reporter account id and include the latest Jira update context for each returned issue."
+      inputs:
+        reporterSalesforceUsername: string
+          description: "Optional Salesforce username override for reporter mapping. Leave blank to use the running Salesforce username."
+        maxResults: object
+          description: "Maximum Jira issues to return for the open-issue lookup."
+          complex_data_type_name: "lightning__integerType"
+      outputs:
+        isSuccess: boolean
+          description: "Whether the reporter-based Jira search succeeded."
+          is_displayable: False
+          is_used_by_planner: True
+        message: string
+          description: "Planner-friendly result of the reporter-based Jira search."
+          is_displayable: False
+          is_used_by_planner: True
+        issueCount: object
+          description: "Count of open Jira issues returned for the reporter."
+          complex_data_type_name: "lightning__integerType"
+          is_displayable: False
+          is_used_by_planner: True
+        issuesSummary: string
+          description: "Formatted summary of the reporter's open Jira issues."
+          is_displayable: False
+          is_used_by_planner: True
+        firstJiraIssueKey: string
+          description: "First Jira issue key returned by the reporter-based search."
+          is_displayable: False
+          is_used_by_planner: True
+        firstIssueLatestUpdateSummary: string
+          description: "Latest Jira update summary for the first issue returned by the reporter-based search."
+          is_displayable: False
+          is_used_by_planner: True
+        firstIssuePriority: string
+          description: "Priority of the first Jira issue returned by the reporter-based search."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "apex://JiraGetMyOpenIssuesAction"
+
+    update_jira_issue:
+      description: "Update a Jira issue directly by exact Jira key or id when the employee wants Jira-backed ticket details changed."
+      inputs:
+        jiraIssueIdOrKey: string
+          description: "Exact Jira issue id or key."
+          is_required: True
+        jiraSummary: string
+          description: "Updated Jira summary when needed."
+        jiraImpactOptionId: string
+          description: "Updated Jira impact option id."
+        jiraUrgencyOptionId: string
+          description: "Updated Jira urgency option id."
+        jiraSeverityOptionId: string
+          description: "Updated Jira severity option id."
+        commentText: string
+          description: "Optional Jira comment text to add after explicit employee confirmation."
+      outputs:
+        isSuccess: boolean
+          description: "Whether the Jira issue update succeeded."
+          is_displayable: False
+          is_used_by_planner: True
+        message: string
+          description: "Result message returned by the direct Jira update action."
+          is_displayable: False
+          is_used_by_planner: True
+        jiraIssueKey: string
+          description: "Jira issue key returned by the update action."
+          is_displayable: False
+          is_used_by_planner: True
+        jiraStatus: string
+          description: "Jira status returned after the update."
+          is_displayable: False
+          is_used_by_planner: True
+      target: "apex://JiraUpdateIssueAction"
+
+topic policy_query:
+  description: "Answer employee questions about company policy, benefits, leave, reimbursements, and guidelines."
+  reasoning:
+    instructions: ->
+      if @variables.policy_answer != "":
+        | Reuse this policy answer when it directly addresses the employee's follow-up: {!@variables.policy_answer}
+
+      | Handle employee questions about company policies, benefits, leave, reimbursements, travel limits, entitlements, and internal guidelines.
+      | If the policy question is unclear, ask a clarifying question before invoking the policy-answer action.
+      | If the answer is incomplete or unclear, explain the policy in simpler language and offer to help interpret it further.
+      | If the managed policy answer does not cover the request, guide the employee toward HR or the relevant team instead of inventing an answer.
+    actions:
+      answer_policy_question: @actions.answer_policy_questions
+        description: "Answer the employee's company-policy question."
+        with "Input:userQuery" = @system_variables.user_input
+        set @variables.policy_answer = @outputs.promptResponse
+      go_to_escalation: @utils.transition to @topic.escalation
+        description: "Move to escalation when the employee needs human follow-up."
+      back_to_router: @utils.transition to @topic.topic_router
+        description: "Return to the main router when the conversation changes topics."
+
+  actions:
+    answer_policy_questions:
+      description: "Answer employee questions about company policies by using the managed policy-answer prompt."
+      inputs:
+        "Input:userQuery": string
+          description: "Employee question about company policy or benefits."
+          is_required: True
+      outputs:
+        promptResponse: object
+          description: "Policy answer returned by the managed prompt."
+          complex_data_type_name: "lightning__richTextType"
+          is_displayable: True
+          is_used_by_planner: True
+      target: "generatePromptResponse://svc_emp_intelligence__AnswerPolicyQuestions"
+      source: "svc_emp_intelligence__AnswerPolicyQuestions"
+
+topic escalation:
+  description: "Handle explicit requests for human assistance and guide employees to the live-help path."
+  reasoning:
+    instructions: |
+      Help the employee get human support.
+      Explain that this first Agent Script version is employee-agent-first and does not yet wire a messaging-specific live-transfer action.
+      If the employee explicitly asks for human help, guide them to the IT help desk or support channel configured by the business and offer to summarize the issue for handoff.
+      If the employee still wants the request logged instead of handoff, route them back to shared service intake or ticket follow-up, whichever best matches the request.
+    actions:
+      go_to_shared_intake: @utils.transition to @topic.shared_service_request_intake
+        description: "Return to shared intake to log a new issue or service request."
+      go_to_ticket_followup: @utils.transition to @topic.ticket_followup
+        description: "Return to ticket follow-up for an existing incident, case, or service request."
+      back_to_router: @utils.transition to @topic.topic_router
+        description: "Return to the main router."
+
+topic off_topic:
+  description: "Politely redirect unsupported or unrelated requests back to the IT employee-assistant scope."
+  reasoning:
+    instructions: |
+      Politely redirect the employee back to supported topics.
+      Only support IT issues, service requests, IT ticket follow-up, policy questions, and requests for human IT help.
+      For unrelated questions, state that you can help with IT and company-policy workflows and ask what the employee needs in that scope.
+
+topic ambiguous_question:
+  description: "Ask for clarification when the employee request is too vague to route or act on."
+  reasoning:
+    instructions: |
+      Ask the employee for one or two specific clarifying details.
+      Encourage them to focus on the single most important issue first.
+      Do not guess which ticket, policy, or request they mean when the intent is still ambiguous.
+
+connection slack:
+  adaptive_response_allowed: True

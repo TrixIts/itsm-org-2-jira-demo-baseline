@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Ask_User_If_Missing__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Whether Agentforce should ask the employee for this value when it is required but missing.</description>
+    <label>Ask User If Missing</label>
+    <trackHistory>true</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Discovered Jira issue fields for a configured connector, project, and issue type.</description>
+    <deploymentStatus>Deployed</deploymentStatus>
+    <enableActivities>false</enableActivities>
+    <enableBulkApi>true</enableBulkApi>
+    <enableFeeds>false</enableFeeds>
+    <enableHistory>true</enableHistory>
+    <enableReports>true</enableReports>
+    <label>Jira Connector Field</label>
+    <nameField>
+        <displayFormat>JCF-{0000}</displayFormat>
+        <label>Jira Connector Field Number</label>
+        <type>AutoNumber</type>
+    </nameField>
+    <pluralLabel>Jira Connector Fields</pluralLabel>
+    <sharingModel>ReadWrite</sharingModel>
+</CustomObject>

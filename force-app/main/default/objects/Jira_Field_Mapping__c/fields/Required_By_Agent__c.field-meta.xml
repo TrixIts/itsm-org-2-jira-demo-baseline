@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Required_By_Agent__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Whether this canonical value is required by the Agentforce ticket contract.</description>
+    <label>Required By Agent</label>
+    <trackHistory>true</trackHistory>
+    <type>Checkbox</type>
+</CustomField>
