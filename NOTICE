@@ -1,0 +1,15 @@
+ITSM Org 2 Jira Agentforce Demo Baseline
+
+This project is licensed under the MIT License. See `LICENSE` for details.
+
+This project is an independent demo baseline and is not an official Salesforce,
+Atlassian, or Jira product.
+
+Salesforce, Agentforce, Apex, Lightning, and related names are trademarks or
+registered trademarks of Salesforce, Inc. Jira, Atlassian, and related names are
+trademarks or registered trademarks of Atlassian Pty Ltd. GitHub is a trademark
+of GitHub, Inc. Other names may be trademarks of their respective owners.
+
+The repository contains source metadata and documentation intended for
+demonstration and implementation acceleration. It does not include Jira API
+tokens, OAuth secrets, production credentials, or real user-to-account mappings.
