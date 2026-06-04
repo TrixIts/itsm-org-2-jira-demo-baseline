@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Agentforce canonical ticket field mappings to Jira backend issue fields.</description>
+    <deploymentStatus>Deployed</deploymentStatus>
+    <enableActivities>false</enableActivities>
+    <enableBulkApi>true</enableBulkApi>
+    <enableFeeds>false</enableFeeds>
+    <enableHistory>true</enableHistory>
+    <enableReports>true</enableReports>
+    <label>Jira Field Mapping</label>
+    <nameField>
+        <displayFormat>JFM-{0000}</displayFormat>
+        <label>Jira Field Mapping Number</label>
+        <type>AutoNumber</type>
+    </nameField>
+    <pluralLabel>Jira Field Mappings</pluralLabel>
+    <sharingModel>ReadWrite</sharingModel>
+</CustomObject>

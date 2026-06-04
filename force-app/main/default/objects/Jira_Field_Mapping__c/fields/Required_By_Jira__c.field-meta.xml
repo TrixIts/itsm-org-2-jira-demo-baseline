@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Required_By_Jira__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Whether the mapped Jira field is required by the selected Jira project and issue type.</description>
+    <label>Required By Jira</label>
+    <trackHistory>false</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

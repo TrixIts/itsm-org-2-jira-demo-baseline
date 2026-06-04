@@ -151,7 +151,7 @@ private class JiraDirectActionsTest {
 
     private static void applyOverrides() {
         JiraIntegrationSupport.JiraConfiguration config = new JiraIntegrationSupport.JiraConfiguration();
-        config.namedCredentialApiName = 'JiraV21Jira_SM';
+        config.namedCredentialApiName = 'Jira_Named_Credential';
         config.projectId = '10001';
         config.issueTypeId = '10001';
         config.projectKey = 'IT';
@@ -377,7 +377,7 @@ private class JiraDirectActionsTest {
         applyOverrides();
 
         JiraIntegrationSupport.JiraConfiguration blankBrowseConfig = new JiraIntegrationSupport.JiraConfiguration();
-        blankBrowseConfig.namedCredentialApiName = 'JiraV21Jira_SM';
+        blankBrowseConfig.namedCredentialApiName = 'Jira_Named_Credential';
         blankBrowseConfig.projectId = '10001';
         blankBrowseConfig.issueTypeId = '10001';
         blankBrowseConfig.projectKey = 'IT';

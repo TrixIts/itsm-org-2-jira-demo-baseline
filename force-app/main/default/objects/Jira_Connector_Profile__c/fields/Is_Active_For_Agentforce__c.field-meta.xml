@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Is_Active_For_Agentforce__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Whether Agentforce runtime actions may use this connector profile.</description>
+    <label>Active For Agentforce</label>
+    <trackHistory>true</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

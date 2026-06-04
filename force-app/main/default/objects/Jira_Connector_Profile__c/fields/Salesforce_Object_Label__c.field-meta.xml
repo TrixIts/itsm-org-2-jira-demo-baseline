@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Salesforce_Object_Label__c</fullName>
+    <description>Salesforce object label connected to this Jira project and issue type.</description>
+    <externalId>false</externalId>
+    <label>Salesforce Object Label</label>
+    <length>255</length>
+    <required>false</required>
+    <trackHistory>true</trackHistory>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>
