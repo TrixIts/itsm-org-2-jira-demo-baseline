@@ -1,10 +1,23 @@
 # ITSM Org 2 Jira Agentforce Demo Baseline
 
-This Salesforce DX repo packages a Jira-backed Agentforce demo baseline. It is intended to help another Salesforce org clone the project, deploy the portable Jira connector pieces, configure its own Jira credentials/project metadata, and reuse the included Agent Script examples for Jira ticket creation and follow-up.
+This Salesforce DX repo packages a Jira-backed Agentforce demo baseline. The recommended demo package delivers a portable Jira Employee Assistant and IT Fulfiller agent plus their shared Apex runtime.
 
-The repo is Jira-focused, but it also contains a reference employee assistant agent that was developed in a broader ITSM demo org. Treat the core Jira manifest as the portable package and the full agent as implementation guidance unless the target org has the same managed ITSM/service catalog dependencies.
+The repo also contains broader historical ITSM and connector-manager material. Use the dedicated two-agent manifest when moving the Jira demo to another org.
 
 ## What's In This Repo
+
+### Recommended Two-Agent Jira Demo
+
+Use `manifest/jira-agentforce-two-agent-demo-package.xml`. It includes:
+
+- `Jira_Employee_Assistant`
+- `IT_Fulfiller_Jira`
+- Direct employee and fulfiller Jira Apex actions
+- Shared Jira configuration, audit, project-profile, and field-mapping metadata
+- Least-privilege employee, fulfiller, and read-only fulfiller permission sets
+
+Setup and deployment validation are documented in
+`docs/jira-two-agent-demo-deployment.md`.
 
 ### Portable Jira Connector Package
 
@@ -62,23 +75,25 @@ The reference `ItEmployeeAssistantV3` agent adds broader demo behavior:
 
 ## Key Files And Directories
 
-| Path | Purpose |
-| --- | --- |
-| `manifest/jira-agentforce-connector-package.xml` | Core portable Jira connector deployment manifest. |
-| `manifest/jira-agentforce-reference-agent-package.xml` | Optional reference agent manifest. |
-| `docs/jira-agentforce-connector-package.md` | End-to-end setup, configuration, deploy, permission, and smoke-test guide. |
-| `docs/direct-jira-actions-setup-and-test.md` | Direct Apex action configuration and test notes. |
-| `docs/jira-agentforce-flow-blueprint.md` | Historical/architectural notes for the Flow and External Service approach. |
-| `force-app/main/default/classes/Jira*Action.cls` | Direct invocable Apex actions exposed to Agentforce. |
-| `force-app/main/default/classes/JiraIntegrationSupport.cls` | Shared direct-action Jira REST helpers and response formatting. |
-| `force-app/main/default/classes/ConnectedTicket*.cls` | Admin-managed connected-ticket invocable action layer. |
-| `force-app/main/default/classes/JiraTicketGateway.cls` | Jira REST gateway for admin-managed connector profiles. |
-| `force-app/main/default/classes/JiraMappingResolver.cls` | Resolves canonical Agentforce ticket fields into Jira payload fields. |
-| `force-app/main/default/lwc/jiraConnectorMapping/` | Admin UI for Jira profile/field mapping configuration. |
-| `force-app/main/default/objects/Jira_*` | Jira connector profile, field catalog, and mapping objects. |
-| `force-app/main/default/customMetadata/Jira_Demo_Setting.*` | Placeholder direct-action settings and example reporter mapping. |
-| `force-app/main/default/permissionsets/Jira_Agentforce_Runtime.permissionset-meta.xml` | Runtime Apex access for Agentforce users. |
-| `force-app/main/default/permissionsets/Jira_Connector_Mapping_Admin.permissionset-meta.xml` | Admin access to mapping UI and mapping objects. |
+| Path                                                                                        | Purpose                                                                          |
+| ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `manifest/jira-agentforce-two-agent-demo-package.xml`                                       | Recommended portable two-agent Jira demo manifest.                               |
+| `docs/jira-two-agent-demo-deployment.md`                                                    | Two-agent prerequisites, configuration, validation, deployment, and smoke tests. |
+| `manifest/jira-agentforce-connector-package.xml`                                            | Core portable Jira connector deployment manifest.                                |
+| `manifest/jira-agentforce-reference-agent-package.xml`                                      | Optional reference agent manifest.                                               |
+| `docs/jira-agentforce-connector-package.md`                                                 | End-to-end setup, configuration, deploy, permission, and smoke-test guide.       |
+| `docs/direct-jira-actions-setup-and-test.md`                                                | Direct Apex action configuration and test notes.                                 |
+| `docs/jira-agentforce-flow-blueprint.md`                                                    | Historical/architectural notes for the Flow and External Service approach.       |
+| `force-app/main/default/classes/Jira*Action.cls`                                            | Direct invocable Apex actions exposed to Agentforce.                             |
+| `force-app/main/default/classes/JiraIntegrationSupport.cls`                                 | Shared direct-action Jira REST helpers and response formatting.                  |
+| `force-app/main/default/classes/ConnectedTicket*.cls`                                       | Admin-managed connected-ticket invocable action layer.                           |
+| `force-app/main/default/classes/JiraTicketGateway.cls`                                      | Jira REST gateway for admin-managed connector profiles.                          |
+| `force-app/main/default/classes/JiraMappingResolver.cls`                                    | Resolves canonical Agentforce ticket fields into Jira payload fields.            |
+| `force-app/main/default/lwc/jiraConnectorMapping/`                                          | Admin UI for Jira profile/field mapping configuration.                           |
+| `force-app/main/default/objects/Jira_*`                                                     | Jira connector profile, field catalog, and mapping objects.                      |
+| `force-app/main/default/customMetadata/Jira_Demo_Setting.*`                                 | Placeholder direct-action settings and example reporter mapping.                 |
+| `force-app/main/default/permissionsets/Jira_Agentforce_Runtime.permissionset-meta.xml`      | Runtime Apex access for Agentforce users.                                        |
+| `force-app/main/default/permissionsets/Jira_Connector_Mapping_Admin.permissionset-meta.xml` | Admin access to mapping UI and mapping objects.                                  |
 
 ## Configuration Model
 

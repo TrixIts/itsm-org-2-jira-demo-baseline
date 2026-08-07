@@ -1,0 +1,3 @@
+Name,Connector_Key__c,Canonical_Field__c,Backend_Field_Key__c,Backend_Field_Label__c,Enabled__c,Allow_Agent_Update__c,Use_In_Summary__c,Transform_Type__c,Transform_Config_JSON__c
+Jira Demo Summary,jira-demo,summary,summary,Summary,true,true,true,Direct,
+Jira Demo Priority,jira-demo,priority,priority,Priority,true,true,true,,

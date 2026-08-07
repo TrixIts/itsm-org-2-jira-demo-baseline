@@ -1,34 +1,25 @@
-public with sharing class JiraCreateIssueAction {
+public with sharing class JiraUpdateTriageFieldsAction {
   public class Request {
-    @InvocableVariable(label='Jira Summary' required=true)
-    public String jiraSummary;
-
-    @InvocableVariable(label='Jira Description' required=true)
-    public String jiraDescription;
+    @InvocableVariable(label='Jira Issue Id Or Key' required=true)
+    public String jiraIssueIdOrKey;
 
     @InvocableVariable(label='Jira Priority')
     public String jiraPriority;
 
-    @InvocableVariable(label='Jira Urgency Option Id')
-    public String jiraUrgencyOptionId;
-
     @InvocableVariable(label='Jira Impact Option Id')
     public String jiraImpactOptionId;
+
+    @InvocableVariable(label='Jira Urgency Option Id')
+    public String jiraUrgencyOptionId;
 
     @InvocableVariable(label='Jira Severity Option Id')
     public String jiraSeverityOptionId;
 
-    @InvocableVariable(label='Requester Email')
-    public String requesterEmail;
+    @InvocableVariable(label='Confirmed By Employee' required=true)
+    public Boolean confirmedByEmployee;
 
-    @InvocableVariable(label='Channel')
-    public String channel;
-
-    @InvocableVariable(label='Source Reference')
-    public String sourceReference;
-
-    @InvocableVariable(label='Reporter Salesforce Username')
-    public String reporterSalesforceUsername;
+    @InvocableVariable(label='Confirmed Jira Issue Key')
+    public String confirmedJiraIssueKey;
   }
 
   public class Response {
@@ -43,6 +34,9 @@ public with sharing class JiraCreateIssueAction {
 
     @InvocableVariable(label='Jira Issue Id')
     public String jiraIssueId;
+
+    @InvocableVariable(label='Jira Status')
+    public String jiraStatus;
 
     @InvocableVariable(label='Jira Issue Url')
     public String jiraIssueUrl;
@@ -64,10 +58,10 @@ public with sharing class JiraCreateIssueAction {
   }
 
   @InvocableMethod(
-    label='Create Jira Issue Direct'
-    description='Creates a Jira issue directly through Jira REST using the configured named credential.'
+    label='Update Jira Triage Fields Direct'
+    description='Updates employee-confirmed Jira triage fields through Jira REST.'
   )
-  public static List<Response> createIssue(List<Request> requests) {
+  public static List<Response> updateTriageFields(List<Request> requests) {
     List<Response> responses = new List<Response>();
     for (Request requestItem : requests) {
       Response responseItem = new Response();
@@ -75,21 +69,31 @@ public with sharing class JiraCreateIssueAction {
       String correlationId;
       try {
         JiraDirectActionSupport.requirePermission(
-          JiraDirectActionSupport.PERMISSION_CREATE
+          JiraDirectActionSupport.PERMISSION_TRIAGE
         );
-        JiraDirectActionSupport.validateCreateInputs(
-          requestItem.jiraSummary,
-          requestItem.jiraDescription,
+        String validatedIssueKey = JiraDirectActionSupport.validateIssueKey(
+          requestItem.jiraIssueIdOrKey
+        );
+        Boolean hasFieldUpdate =
+          !String.isBlank(requestItem.jiraPriority) ||
+          !String.isBlank(requestItem.jiraImpactOptionId) ||
+          !String.isBlank(requestItem.jiraUrgencyOptionId) ||
+          !String.isBlank(requestItem.jiraSeverityOptionId);
+        if (!hasFieldUpdate) {
+          throw JiraIntegrationSupport.newException(
+            'VALIDATION',
+            null,
+            false,
+            'Provide at least one Jira triage field before updating Jira.'
+          );
+        }
+        JiraDirectActionSupport.validatePriority(requestItem.jiraPriority);
+        correlationId = JiraDirectActionSupport.buildTriageCorrelationKey(
+          validatedIssueKey,
           requestItem.jiraPriority,
-          requestItem.requesterEmail,
-          requestItem.channel,
-          requestItem.sourceReference
-        );
-        correlationId = JiraDirectActionSupport.buildCreateCorrelationKey(
-          requestItem.sourceReference,
-          requestItem.jiraSummary,
-          requestItem.jiraDescription,
-          requestItem.requesterEmail
+          requestItem.jiraImpactOptionId,
+          requestItem.jiraUrgencyOptionId,
+          requestItem.jiraSeverityOptionId
         );
         responseItem.correlationId = correlationId;
         Jira_Integration_Transaction__c existingTransaction = JiraDirectActionSupport.findSuccessfulTransaction(
@@ -103,44 +107,53 @@ public with sharing class JiraCreateIssueAction {
             responseItem.jiraIssueKey
           );
           responseItem.message =
-            'This request was already submitted as Jira issue ' +
+            'These triage values were already applied to Jira issue ' +
             responseItem.jiraIssueKey +
             '.';
           responses.add(responseItem);
           continue;
         }
-        Map<String, Object> createResult = JiraIntegrationSupport.createIssue(
-          requestItem.jiraSummary,
-          requestItem.jiraDescription,
+
+        JiraIntegrationSupport.validateWriteConfirmation(
+          validatedIssueKey,
+          requestItem.confirmedByEmployee,
+          requestItem.confirmedJiraIssueKey,
+          null,
+          null
+        );
+        JiraIntegrationSupport.updateIssue(
+          validatedIssueKey,
+          null,
           requestItem.jiraPriority,
-          requestItem.jiraUrgencyOptionId,
           requestItem.jiraImpactOptionId,
-          requestItem.jiraSeverityOptionId,
-          requestItem.requesterEmail,
-          requestItem.channel,
-          requestItem.sourceReference,
-          requestItem.reporterSalesforceUsername
+          requestItem.jiraUrgencyOptionId,
+          requestItem.jiraSeverityOptionId
         );
 
+        Map<String, Object> refreshedIssue = JiraIntegrationSupport.getIssueByKey(
+          validatedIssueKey
+        );
         responseItem.isSuccess = true;
         responseItem.isDuplicate = false;
         responseItem.jiraIssueKey = JiraIntegrationSupport.stringValue(
-          createResult.get('key')
+          refreshedIssue.get('key')
         );
         responseItem.jiraIssueId = JiraIntegrationSupport.stringValue(
-          createResult.get('id')
+          refreshedIssue.get('id')
+        );
+        responseItem.jiraStatus = JiraIntegrationSupport.issueStatus(
+          refreshedIssue
         );
         responseItem.jiraIssueUrl = JiraIntegrationSupport.buildIssueUrl(
           responseItem.jiraIssueKey
         );
-        responseItem.message = String.isBlank(responseItem.jiraIssueKey)
-          ? 'Jira issue created successfully.'
-          : 'Jira issue ' +
-            responseItem.jiraIssueKey +
-            ' created successfully.';
+        responseItem.message =
+          'Jira issue ' +
+          responseItem.jiraIssueKey +
+          ' triage fields updated successfully.';
         JiraDirectActionSupport.recordTransaction(
           correlationId,
-          'Create',
+          'Triage',
           responseItem.jiraIssueKey,
           'Success',
           startedAt,
@@ -156,16 +169,20 @@ public with sharing class JiraCreateIssueAction {
         responseItem.statusCode = errorInfo.statusCode;
         responseItem.isRetryable = errorInfo.isRetryable;
         responseItem.message =
-          'Jira issue creation failed: ' + errorInfo.safeMessage;
+          'Jira triage update failed: ' + errorInfo.safeMessage;
         responseItem.jiraIssueKey = '';
         responseItem.jiraIssueId = '';
+        responseItem.jiraStatus = '';
         responseItem.jiraIssueUrl = '';
         JiraDirectActionSupport.recordTransaction(
           String.isBlank(correlationId)
-            ? JiraDirectActionSupport.newAuditCorrelation('Create', null)
+            ? JiraDirectActionSupport.newAuditCorrelation(
+                'Triage',
+                requestItem.jiraIssueIdOrKey
+              )
             : correlationId,
-          'Create',
-          null,
+          'Triage',
+          requestItem.jiraIssueIdOrKey,
           'Failure',
           startedAt,
           errorInfo

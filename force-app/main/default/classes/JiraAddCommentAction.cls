@@ -1,34 +1,19 @@
-public with sharing class JiraCreateIssueAction {
+public with sharing class JiraAddCommentAction {
   public class Request {
-    @InvocableVariable(label='Jira Summary' required=true)
-    public String jiraSummary;
+    @InvocableVariable(label='Jira Issue Id Or Key' required=true)
+    public String jiraIssueIdOrKey;
 
-    @InvocableVariable(label='Jira Description' required=true)
-    public String jiraDescription;
+    @InvocableVariable(label='Comment Text' required=true)
+    public String commentText;
 
-    @InvocableVariable(label='Jira Priority')
-    public String jiraPriority;
+    @InvocableVariable(label='Confirmed By Employee' required=true)
+    public Boolean confirmedByEmployee;
 
-    @InvocableVariable(label='Jira Urgency Option Id')
-    public String jiraUrgencyOptionId;
+    @InvocableVariable(label='Confirmed Jira Issue Key')
+    public String confirmedJiraIssueKey;
 
-    @InvocableVariable(label='Jira Impact Option Id')
-    public String jiraImpactOptionId;
-
-    @InvocableVariable(label='Jira Severity Option Id')
-    public String jiraSeverityOptionId;
-
-    @InvocableVariable(label='Requester Email')
-    public String requesterEmail;
-
-    @InvocableVariable(label='Channel')
-    public String channel;
-
-    @InvocableVariable(label='Source Reference')
-    public String sourceReference;
-
-    @InvocableVariable(label='Reporter Salesforce Username')
-    public String reporterSalesforceUsername;
+    @InvocableVariable(label='Confirmed Comment Text' required=true)
+    public String confirmedCommentText;
   }
 
   public class Response {
@@ -40,9 +25,6 @@ public with sharing class JiraCreateIssueAction {
 
     @InvocableVariable(label='Jira Issue Key')
     public String jiraIssueKey;
-
-    @InvocableVariable(label='Jira Issue Id')
-    public String jiraIssueId;
 
     @InvocableVariable(label='Jira Issue Url')
     public String jiraIssueUrl;
@@ -64,10 +46,10 @@ public with sharing class JiraCreateIssueAction {
   }
 
   @InvocableMethod(
-    label='Create Jira Issue Direct'
-    description='Creates a Jira issue directly through Jira REST using the configured named credential.'
+    label='Add Jira Comment Direct'
+    description='Adds an employee-confirmed public Jira comment through Jira REST.'
   )
-  public static List<Response> createIssue(List<Request> requests) {
+  public static List<Response> addComment(List<Request> requests) {
     List<Response> responses = new List<Response>();
     for (Request requestItem : requests) {
       Response responseItem = new Response();
@@ -75,21 +57,15 @@ public with sharing class JiraCreateIssueAction {
       String correlationId;
       try {
         JiraDirectActionSupport.requirePermission(
-          JiraDirectActionSupport.PERMISSION_CREATE
+          JiraDirectActionSupport.PERMISSION_COMMENT
         );
-        JiraDirectActionSupport.validateCreateInputs(
-          requestItem.jiraSummary,
-          requestItem.jiraDescription,
-          requestItem.jiraPriority,
-          requestItem.requesterEmail,
-          requestItem.channel,
-          requestItem.sourceReference
+        String validatedIssueKey = JiraDirectActionSupport.validateIssueKey(
+          requestItem.jiraIssueIdOrKey
         );
-        correlationId = JiraDirectActionSupport.buildCreateCorrelationKey(
-          requestItem.sourceReference,
-          requestItem.jiraSummary,
-          requestItem.jiraDescription,
-          requestItem.requesterEmail
+        JiraDirectActionSupport.validateComment(requestItem.commentText);
+        correlationId = JiraDirectActionSupport.buildCommentCorrelationKey(
+          validatedIssueKey,
+          requestItem.commentText
         );
         responseItem.correlationId = correlationId;
         Jira_Integration_Transaction__c existingTransaction = JiraDirectActionSupport.findSuccessfulTransaction(
@@ -103,44 +79,42 @@ public with sharing class JiraCreateIssueAction {
             responseItem.jiraIssueKey
           );
           responseItem.message =
-            'This request was already submitted as Jira issue ' +
+            'This confirmed comment was already added to Jira issue ' +
             responseItem.jiraIssueKey +
             '.';
           responses.add(responseItem);
           continue;
         }
-        Map<String, Object> createResult = JiraIntegrationSupport.createIssue(
-          requestItem.jiraSummary,
-          requestItem.jiraDescription,
-          requestItem.jiraPriority,
-          requestItem.jiraUrgencyOptionId,
-          requestItem.jiraImpactOptionId,
-          requestItem.jiraSeverityOptionId,
-          requestItem.requesterEmail,
-          requestItem.channel,
-          requestItem.sourceReference,
-          requestItem.reporterSalesforceUsername
+        JiraIntegrationSupport.validateWriteConfirmation(
+          validatedIssueKey,
+          requestItem.confirmedByEmployee,
+          requestItem.confirmedJiraIssueKey,
+          requestItem.commentText,
+          requestItem.confirmedCommentText
+        );
+        JiraIntegrationSupport.addComment(
+          validatedIssueKey,
+          requestItem.commentText
         );
 
+        Map<String, Object> refreshedIssue = JiraIntegrationSupport.getIssueByKey(
+          validatedIssueKey
+        );
         responseItem.isSuccess = true;
         responseItem.isDuplicate = false;
         responseItem.jiraIssueKey = JiraIntegrationSupport.stringValue(
-          createResult.get('key')
-        );
-        responseItem.jiraIssueId = JiraIntegrationSupport.stringValue(
-          createResult.get('id')
+          refreshedIssue.get('key')
         );
         responseItem.jiraIssueUrl = JiraIntegrationSupport.buildIssueUrl(
           responseItem.jiraIssueKey
         );
-        responseItem.message = String.isBlank(responseItem.jiraIssueKey)
-          ? 'Jira issue created successfully.'
-          : 'Jira issue ' +
-            responseItem.jiraIssueKey +
-            ' created successfully.';
+        responseItem.message =
+          'Comment added to Jira issue ' +
+          responseItem.jiraIssueKey +
+          ' successfully.';
         JiraDirectActionSupport.recordTransaction(
           correlationId,
-          'Create',
+          'Comment',
           responseItem.jiraIssueKey,
           'Success',
           startedAt,
@@ -155,17 +129,18 @@ public with sharing class JiraCreateIssueAction {
         responseItem.errorType = errorInfo.errorType;
         responseItem.statusCode = errorInfo.statusCode;
         responseItem.isRetryable = errorInfo.isRetryable;
-        responseItem.message =
-          'Jira issue creation failed: ' + errorInfo.safeMessage;
+        responseItem.message = 'Jira comment failed: ' + errorInfo.safeMessage;
         responseItem.jiraIssueKey = '';
-        responseItem.jiraIssueId = '';
         responseItem.jiraIssueUrl = '';
         JiraDirectActionSupport.recordTransaction(
           String.isBlank(correlationId)
-            ? JiraDirectActionSupport.newAuditCorrelation('Create', null)
+            ? JiraDirectActionSupport.newAuditCorrelation(
+                'Comment',
+                requestItem.jiraIssueIdOrKey
+              )
             : correlationId,
-          'Create',
-          null,
+          'Comment',
+          requestItem.jiraIssueIdOrKey,
           'Failure',
           startedAt,
           errorInfo

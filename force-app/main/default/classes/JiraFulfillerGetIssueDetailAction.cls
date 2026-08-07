@@ -1,4 +1,4 @@
-public with sharing class JiraGetIssueByKeyAction {
+public with sharing class JiraFulfillerGetIssueDetailAction {
   public class Request {
     @InvocableVariable(label='Jira Issue Key' required=true)
     public String jiraIssueKey;
@@ -38,17 +38,20 @@ public with sharing class JiraGetIssueByKeyAction {
     @InvocableVariable(label='Jira Assignee Display Name')
     public String jiraAssigneeDisplayName;
 
-    @InvocableVariable(label='Jira Issue Url')
-    public String jiraIssueUrl;
+    @InvocableVariable(label='Jira Description')
+    public String jiraDescription;
 
-    @InvocableVariable(label='Latest Update Summary')
-    public String latestUpdateSummary;
+    @InvocableVariable(label='Mapped Fields Summary')
+    public String mappedFieldsSummary;
 
     @InvocableVariable(label='Recent Comments Summary')
     public String recentCommentsSummary;
 
     @InvocableVariable(label='Recent History Summary')
     public String recentHistorySummary;
+
+    @InvocableVariable(label='Jira Issue Url')
+    public String jiraIssueUrl;
 
     @InvocableVariable(label='Content Trust')
     public String contentTrust;
@@ -67,25 +70,31 @@ public with sharing class JiraGetIssueByKeyAction {
   }
 
   @InvocableMethod(
-    label='Get Jira Issue By Key Direct'
-    description='Retrieves a Jira issue directly by Jira key through Jira REST.'
+    label='Get Jira Issue Detail (Fulfiller)'
+    description='Retrieves full, scope-enforced Jira issue detail including description, mapped fields, comments, and history.'
+    callout=true
   )
-  public static List<Response> getIssue(List<Request> requests) {
+  public static List<Response> getDetail(List<Request> requests) {
     List<Response> responses = new List<Response>();
     for (Request requestItem : requests) {
       Response responseItem = new Response();
+      responseItem.contentTrust = JiraFulfillerSupport.CONTENT_TRUST;
       Long startedAt = Datetime.now().getTime();
       String correlationId = JiraDirectActionSupport.newAuditCorrelation(
-        'ReadIssue',
+        'FulfillerReadIssue',
         requestItem == null ? null : requestItem.jiraIssueKey
       );
       responseItem.correlationId = correlationId;
       try {
-        JiraDirectActionSupport.requirePermission(
-          JiraDirectActionSupport.PERMISSION_READ
+        JiraFulfillerSupport.requirePermission(
+          JiraFulfillerSupport.PERMISSION_READ
         );
-        Map<String, Object> issueData = JiraIntegrationSupport.getIssueByKey(
+        JiraFulfillerSupport.IssueRef ref = JiraFulfillerSupport.validateAndResolveIssueKey(
           requestItem.jiraIssueKey
+        );
+        Map<String, Object> issueData = JiraFulfillerSupport.fetchIssue(
+          ref,
+          null
         );
         Map<String, Object> fields = JiraIntegrationSupport.mapValue(
           issueData.get('fields')
@@ -98,8 +107,9 @@ public with sharing class JiraGetIssueByKeyAction {
         responseItem.jiraIssueId = JiraIntegrationSupport.stringValue(
           issueData.get('id')
         );
-        responseItem.jiraSummary = JiraIntegrationSupport.stringValue(
-          fields.get('summary')
+        responseItem.jiraSummary = JiraDirectActionSupport.sanitizeExternalText(
+          JiraIntegrationSupport.stringValue(fields.get('summary')),
+          255
         );
         responseItem.jiraStatus = JiraIntegrationSupport.issueStatus(issueData);
         responseItem.jiraPriority = JiraIntegrationSupport.issuePriority(
@@ -109,35 +119,46 @@ public with sharing class JiraGetIssueByKeyAction {
           issueData
         );
         responseItem.isClosed = JiraIntegrationSupport.isClosedIssue(issueData);
-        responseItem.jiraReporterDisplayName = JiraIntegrationSupport.stringValue(
-          JiraIntegrationSupport.mapValue(fields.get('reporter'))
-            .get('displayName')
+        responseItem.jiraReporterDisplayName = JiraDirectActionSupport.sanitizeExternalText(
+          JiraIntegrationSupport.stringValue(
+            JiraIntegrationSupport.mapValue(fields.get('reporter'))
+              .get('displayName')
+          ),
+          120
         );
-        responseItem.jiraAssigneeDisplayName = JiraIntegrationSupport.stringValue(
-          JiraIntegrationSupport.mapValue(fields.get('assignee'))
-            .get('displayName')
+        responseItem.jiraAssigneeDisplayName = JiraDirectActionSupport.sanitizeExternalText(
+          JiraIntegrationSupport.stringValue(
+            JiraIntegrationSupport.mapValue(fields.get('assignee'))
+              .get('displayName')
+          ),
+          120
         );
-        responseItem.jiraIssueUrl = JiraIntegrationSupport.buildIssueUrl(
-          responseItem.jiraIssueKey
+        responseItem.jiraDescription = JiraDirectActionSupport.sanitizeExternalText(
+          JiraIntegrationSupport.adfToText(fields.get('description')),
+          4000
         );
-        responseItem.latestUpdateSummary = JiraIntegrationSupport.describeLatestUpdate(
-          issueData
+        responseItem.mappedFieldsSummary = JiraFulfillerSupport.renderMappedFields(
+          ref.profile.Connector_Key__c,
+          fields
         );
         responseItem.recentCommentsSummary = JiraIntegrationSupport.summarizeRecentComments(
           issueData,
-          3
+          5
         );
         responseItem.recentHistorySummary = JiraIntegrationSupport.summarizeRecentHistory(
           issueData,
-          3
+          5
         );
-        responseItem.contentTrust = 'UNTRUSTED_EXTERNAL_DATA';
+        responseItem.jiraIssueUrl = JiraFulfillerSupport.buildIssueUrl(
+          ref.profile,
+          responseItem.jiraIssueKey
+        );
         responseItem.message = JiraIntegrationSupport.buildIssueResponseMessage(
           issueData
         );
         JiraDirectActionSupport.recordTransaction(
           correlationId,
-          'ReadIssue',
+          'FulfillerReadIssue',
           responseItem.jiraIssueKey,
           'Success',
           startedAt,
@@ -151,12 +172,11 @@ public with sharing class JiraGetIssueByKeyAction {
         responseItem.errorType = errorInfo.errorType;
         responseItem.statusCode = errorInfo.statusCode;
         responseItem.isRetryable = errorInfo.isRetryable;
-        responseItem.contentTrust = 'UNTRUSTED_EXTERNAL_DATA';
         responseItem.message =
           'Jira issue lookup failed: ' + errorInfo.safeMessage;
         JiraDirectActionSupport.recordTransaction(
           correlationId,
-          'ReadIssue',
+          'FulfillerReadIssue',
           requestItem == null ? null : requestItem.jiraIssueKey,
           'Failure',
           startedAt,

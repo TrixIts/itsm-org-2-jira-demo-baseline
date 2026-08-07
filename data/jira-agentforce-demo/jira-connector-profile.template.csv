@@ -1,0 +1,2 @@
+Name,Connector_Key__c,Route_Key__c,Named_Credential_Api_Name__c,Project_Id__c,Project_Key__c,Project_Name__c,Issue_Type_Id__c,Issue_Type_Name__c,Browse_Base_Url__c,Open_Issue_Jql_Clause__c,Active__c,Is_Active_For_Agentforce__c
+Jira Demo Project,jira-demo,incident,JiraV21Jira_SM,YOUR_JIRA_PROJECT_ID,YOUR_JIRA_PROJECT_KEY,Jira Demo Project,YOUR_JIRA_ISSUE_TYPE_ID,Task,https://your-domain.atlassian.net,,true,true

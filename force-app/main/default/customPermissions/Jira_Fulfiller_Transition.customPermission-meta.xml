@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description
+  >Allows the Jira fulfiller agent to move scoped Jira issues through confirmed valid workflow transitions.</description>
+    <label>Jira Fulfiller Transition</label>
+</CustomPermission>
