@@ -23,8 +23,6 @@
         <members>JiraGetIssueByKeyAction</members>
         <members>JiraGetMyOpenIssuesAction</members>
         <members>JiraIntegrationSupport</members>
-        <members>JiraMappingResolver</members>
-        <members>JiraTicketGateway</members>
         <members>JiraUpdateTriageFieldsAction</members>
         <members>JiraUpdateIssueAction</members>
         <name>ApexClass</name>

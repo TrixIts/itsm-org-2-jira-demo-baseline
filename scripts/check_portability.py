@@ -43,11 +43,15 @@ FORBIDDEN_LITERALS = {
     "lokilutions",
     "ITSM Org 2",
     "JiraV21Jira_SM",
+    "ARFPC_",
+    "rag_feature_config_id:",
+    "connection slack:",
     "Danny Smith",
     "Julia Anderson",
     "Scott Hendrix",
     "trailsignup.",
     "712020:",
+    "shendrix",
 }
 
 

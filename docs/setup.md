@@ -42,6 +42,8 @@ Create a Named Credential and External Credential in Salesforce Setup. The Named
 - create issues;
 - perform the fulfiller operations you intend to enable.
 
+Grant the External Credential principal to the runtime users through a target-org-owned permission set. The credential API name and principal are org-local values, so this repository cannot safely prebuild that permission assignment.
+
 Do not add credential metadata containing secrets to this repository.
 
 ## 4. Assign Setup Access
@@ -136,3 +138,5 @@ sf agent activate --json --api-name ItEmployeeAssistantV3 --target-org <target-o
 sf agent publish authoring-bundle --json --api-name IT_Fulfiller_Jira --target-org <target-org>
 sf agent activate --json --api-name IT_Fulfiller_Jira --target-org <target-org>
 ```
+
+After publishing, grant users access to each published agent in Salesforce Setup or through target-org-owned permission sets with the corresponding Agent Access entries. Agent access cannot be deployed before the target org has created the published Bot records.

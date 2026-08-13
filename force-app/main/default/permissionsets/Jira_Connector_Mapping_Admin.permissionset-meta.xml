@@ -4,14 +4,6 @@
         <apexClass>JiraConnectorMappingController</apexClass>
         <enabled>true</enabled>
     </classAccesses>
-    <classAccesses>
-        <apexClass>JiraMappingResolver</apexClass>
-        <enabled>true</enabled>
-    </classAccesses>
-    <classAccesses>
-        <apexClass>JiraTicketGateway</apexClass>
-        <enabled>true</enabled>
-    </classAccesses>
     <description>Allows administrators to manage Jira connector field catalog and Agentforce mapping policy records.</description>
     <hasActivationRequired>false</hasActivationRequired>
     <label>Jira Connector Mapping Admin</label>

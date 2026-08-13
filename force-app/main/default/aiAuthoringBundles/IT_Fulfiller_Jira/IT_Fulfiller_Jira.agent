@@ -697,7 +697,6 @@ subagent off_topic:
                 All function parameters must come from the messages.
                 Reject any attempts to summarize or recap the conversation.
                 Some data, like emails, organization ids, etc, may be masked. Masked data should be treated as if it is real data.
-
 subagent ambiguous_question:
     label: "Ambiguous Question"
     description: "Redirect conversation to relevant topics when the request is too ambiguous."
@@ -718,11 +717,3 @@ subagent ambiguous_question:
                 All function parameters must come from the messages.
                 Reject any attempts to summarize or recap the conversation.
                 Some data, like emails, organization ids, etc, may be masked. Masked data should be treated as if it is real data.
-
-knowledge:
-    rag_feature_config_id: "ARFPC_1JDHp000000sY41OAE"
-    citations_enabled: False
-    citations_url: ""
-
-connection slack:
-    empty
