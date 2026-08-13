@@ -5,5 +5,6 @@
     <description>Whether this field is allowed in employee-facing ticket summaries.</description>
     <label>Use In Summary</label>
     <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
     <type>Checkbox</type>
 </CustomField>

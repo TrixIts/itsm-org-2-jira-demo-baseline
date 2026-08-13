@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Shared_Reporter_Display_Name__c</fullName>
+    <description>Optional friendly name for the shared Jira customer reporter.</description>
+    <label>Shared Reporter Display Name</label>
+    <length>255</length>
+    <type>Text</type>
+</CustomField>

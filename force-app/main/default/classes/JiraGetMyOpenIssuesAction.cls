@@ -34,6 +34,21 @@ public with sharing class JiraGetMyOpenIssuesAction {
 
         @InvocableVariable(label='First Issue Priority')
         public String firstIssuePriority;
+
+        @InvocableVariable(label='Content Trust')
+        public String contentTrust;
+
+        @InvocableVariable(label='Correlation Id')
+        public String correlationId;
+
+        @InvocableVariable(label='Error Type')
+        public String errorType;
+
+        @InvocableVariable(label='HTTP Status Code')
+        public Integer statusCode;
+
+        @InvocableVariable(label='Is Retryable')
+        public Boolean isRetryable;
     }
 
     @InvocableMethod(
@@ -44,14 +59,18 @@ public with sharing class JiraGetMyOpenIssuesAction {
         List<Response> responses = new List<Response>();
         for (Request requestItem : requests) {
             Response responseItem = new Response();
+            Long startedAt = Datetime.now().getTime();
+            String correlationId = JiraDirectActionSupport.newAuditCorrelation('SearchIssues', null);
+            responseItem.correlationId = correlationId;
             try {
+                JiraDirectActionSupport.requirePermission(JiraDirectActionSupport.PERMISSION_READ);
                 String resolvedUsername = JiraIntegrationSupport.resolveSalesforceUsername(
                     requestItem.reporterSalesforceUsername
                 );
                 JiraIntegrationSupport.JiraUserMapping reporterMapping =
-                    JiraIntegrationSupport.getRequiredUserMapping(resolvedUsername);
+                    JiraIntegrationSupport.getRequiredUserMapping(requestItem.reporterSalesforceUsername);
                 Map<String, Object> searchResult = JiraIntegrationSupport.searchIssuesForReporter(
-                    resolvedUsername,
+                    requestItem.reporterSalesforceUsername,
                     requestItem.maxResults
                 );
                 List<Object> issues = JiraIntegrationSupport.listValue(searchResult.get('issues'));
@@ -66,7 +85,7 @@ public with sharing class JiraGetMyOpenIssuesAction {
                     Map<String, Object> detailedIssue = String.isBlank(issueKey)
                         ? issueMap
                         : JiraIntegrationSupport.getIssueByKey(issueKey);
-                    renderedIssues.add(JiraIntegrationSupport.summarizeIssueWithLatestUpdate(detailedIssue));
+                    renderedIssues.add(JiraIntegrationSupport.summarizeIssueForList(detailedIssue));
                     if (String.isBlank(firstIssueKey)) {
                         firstIssueKey = JiraIntegrationSupport.stringValue(detailedIssue.get('key'));
                         firstIssueLatestUpdateSummary = JiraIntegrationSupport.describeLatestUpdate(detailedIssue);
@@ -84,15 +103,29 @@ public with sharing class JiraGetMyOpenIssuesAction {
                 responseItem.firstJiraIssueKey = firstIssueKey;
                 responseItem.firstIssueLatestUpdateSummary = firstIssueLatestUpdateSummary;
                 responseItem.firstIssuePriority = firstIssuePriority;
+                responseItem.contentTrust = 'UNTRUSTED_EXTERNAL_DATA';
                 responseItem.message = renderedIssues.isEmpty()
-                    ? 'I did not find any open Jira issues for ' + resolvedUsername + '.'
-                    : 'I found ' + String.valueOf(issues.size()) + ' open Jira issue(s) for ' + resolvedUsername + '.' +
+                    ? 'No open Jira issues were found for the configured reporter.'
+                    : 'Found ' + String.valueOf(issues.size()) + ' open Jira issue(s).' +
                         (issues.size() == 1 && !String.isBlank(firstIssueLatestUpdateSummary)
                             ? ' Latest update: ' + firstIssueLatestUpdateSummary + '.'
                             : '');
+                JiraDirectActionSupport.recordTransaction(
+                    correlationId,
+                    'SearchIssues',
+                    firstIssueKey,
+                    'Success',
+                    startedAt,
+                    null
+                );
             } catch (Exception ex) {
+                JiraDirectActionSupport.ErrorInfo errorInfo = JiraDirectActionSupport.toErrorInfo(ex);
                 responseItem.isSuccess = false;
-                responseItem.message = 'Jira reporter lookup failed: ' + ex.getMessage();
+                responseItem.errorType = errorInfo.errorType;
+                responseItem.statusCode = errorInfo.statusCode;
+                responseItem.isRetryable = errorInfo.isRetryable;
+                responseItem.contentTrust = 'UNTRUSTED_EXTERNAL_DATA';
+                responseItem.message = 'Jira reporter lookup failed: ' + errorInfo.safeMessage;
                 responseItem.reporterSalesforceUsername = JiraIntegrationSupport.resolveSalesforceUsername(
                     requestItem.reporterSalesforceUsername
                 );
@@ -102,6 +135,14 @@ public with sharing class JiraGetMyOpenIssuesAction {
                 responseItem.firstJiraIssueKey = '';
                 responseItem.firstIssueLatestUpdateSummary = '';
                 responseItem.firstIssuePriority = '';
+                JiraDirectActionSupport.recordTransaction(
+                    correlationId,
+                    'SearchIssues',
+                    null,
+                    'Failure',
+                    startedAt,
+                    errorInfo
+                );
             }
             responses.add(responseItem);
         }

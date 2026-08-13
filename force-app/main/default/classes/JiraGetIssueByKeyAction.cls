@@ -49,6 +49,21 @@ public with sharing class JiraGetIssueByKeyAction {
 
         @InvocableVariable(label='Recent History Summary')
         public String recentHistorySummary;
+
+        @InvocableVariable(label='Content Trust')
+        public String contentTrust;
+
+        @InvocableVariable(label='Correlation Id')
+        public String correlationId;
+
+        @InvocableVariable(label='Error Type')
+        public String errorType;
+
+        @InvocableVariable(label='HTTP Status Code')
+        public Integer statusCode;
+
+        @InvocableVariable(label='Is Retryable')
+        public Boolean isRetryable;
     }
 
     @InvocableMethod(
@@ -59,7 +74,14 @@ public with sharing class JiraGetIssueByKeyAction {
         List<Response> responses = new List<Response>();
         for (Request requestItem : requests) {
             Response responseItem = new Response();
+            Long startedAt = Datetime.now().getTime();
+            String correlationId = JiraDirectActionSupport.newAuditCorrelation(
+                'ReadIssue',
+                requestItem == null ? null : requestItem.jiraIssueKey
+            );
+            responseItem.correlationId = correlationId;
             try {
+                JiraDirectActionSupport.requirePermission(JiraDirectActionSupport.PERMISSION_READ);
                 Map<String, Object> issueData = JiraIntegrationSupport.getIssueByKey(requestItem.jiraIssueKey);
                 Map<String, Object> fields = JiraIntegrationSupport.mapValue(issueData.get('fields'));
 
@@ -81,10 +103,32 @@ public with sharing class JiraGetIssueByKeyAction {
                 responseItem.latestUpdateSummary = JiraIntegrationSupport.describeLatestUpdate(issueData);
                 responseItem.recentCommentsSummary = JiraIntegrationSupport.summarizeRecentComments(issueData, 3);
                 responseItem.recentHistorySummary = JiraIntegrationSupport.summarizeRecentHistory(issueData, 3);
+                responseItem.contentTrust = 'UNTRUSTED_EXTERNAL_DATA';
                 responseItem.message = JiraIntegrationSupport.buildIssueResponseMessage(issueData);
+                JiraDirectActionSupport.recordTransaction(
+                    correlationId,
+                    'ReadIssue',
+                    responseItem.jiraIssueKey,
+                    'Success',
+                    startedAt,
+                    null
+                );
             } catch (Exception ex) {
+                JiraDirectActionSupport.ErrorInfo errorInfo = JiraDirectActionSupport.toErrorInfo(ex);
                 responseItem.isSuccess = false;
-                responseItem.message = 'Jira issue lookup failed: ' + ex.getMessage();
+                responseItem.errorType = errorInfo.errorType;
+                responseItem.statusCode = errorInfo.statusCode;
+                responseItem.isRetryable = errorInfo.isRetryable;
+                responseItem.contentTrust = 'UNTRUSTED_EXTERNAL_DATA';
+                responseItem.message = 'Jira issue lookup failed: ' + errorInfo.safeMessage;
+                JiraDirectActionSupport.recordTransaction(
+                    correlationId,
+                    'ReadIssue',
+                    requestItem == null ? null : requestItem.jiraIssueKey,
+                    'Failure',
+                    startedAt,
+                    errorInfo
+                );
             }
             responses.add(responseItem);
         }

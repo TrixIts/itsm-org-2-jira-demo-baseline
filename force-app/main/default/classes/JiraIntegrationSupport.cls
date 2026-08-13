@@ -1,4 +1,6 @@
 public with sharing class JiraIntegrationSupport {
+    private static final Integer MAX_OPEN_ISSUES = 5;
+
     public class JiraConfiguration {
         public String namedCredentialApiName;
         public String projectId;
@@ -6,6 +8,18 @@ public with sharing class JiraIntegrationSupport {
         public String projectKey;
         public String browseBaseUrl;
         public String openIssueJqlClause;
+        public String impactFieldKey;
+        public String urgencyFieldKey;
+        public String severityFieldKey;
+        public Set<String> allowedImpactOptionIds;
+        public Set<String> allowedUrgencyOptionIds;
+        public Set<String> allowedSeverityOptionIds;
+        public Boolean enforceProjectScope;
+        public Boolean requireReporterMatchForRead;
+        public Boolean requireReporterMatchForWrite;
+        public Boolean exposeInternalComments;
+        public String sharedReporterAccountId;
+        public String sharedReporterDisplayName;
     }
 
     public class JiraUserMapping {
@@ -14,7 +28,11 @@ public with sharing class JiraIntegrationSupport {
         public String jiraDisplayName;
     }
 
-    public class JiraIntegrationException extends Exception {}
+    public class JiraIntegrationException extends Exception {
+        public String errorType;
+        public Integer statusCode;
+        public Boolean isRetryable;
+    }
 
     private class JiraActivityEvent {
         public Datetime occurredAt;
@@ -30,18 +48,66 @@ public with sharing class JiraIntegrationSupport {
     @TestVisible
     private static String commentAuthorSalesforceUsernameOverride;
 
+    public static JiraIntegrationException newException(
+        String errorType,
+        Integer statusCode,
+        Boolean isRetryable,
+        String safeMessage
+    ) {
+        JiraIntegrationException exceptionValue = new JiraIntegrationException(safeMessage);
+        exceptionValue.errorType = errorType;
+        exceptionValue.statusCode = statusCode;
+        exceptionValue.isRetryable = isRetryable;
+        return exceptionValue;
+    }
+
     public static JiraConfiguration getConfiguration() {
         if (configOverride != null) {
-            return configOverride;
+            return normalizeConfiguration(configOverride);
+        }
+
+        List<Jira_Connector_Profile__c> employeeProfiles = [
+            SELECT Named_Credential_Api_Name__c, Project_Id__c, Project_Key__c, Issue_Type_Id__c,
+                Browse_Base_Url__c, Open_Issue_Jql_Clause__c, Shared_Reporter_Account_Id__c,
+                Shared_Reporter_Display_Name__c
+            FROM Jira_Connector_Profile__c
+            WHERE Active__c = true AND Is_Active_For_Agentforce__c = true AND Employee_Default__c = true
+            LIMIT 2
+        ];
+        if (employeeProfiles.size() > 1) {
+            throw newException(
+                'CONFIGURATION',
+                null,
+                false,
+                'Multiple active Jira connector profiles are marked Employee Default. Keep exactly one employee default.'
+            );
+        }
+        if (employeeProfiles.size() == 1) {
+            Jira_Connector_Profile__c profile = employeeProfiles[0];
+            JiraConfiguration profileConfig = new JiraConfiguration();
+            profileConfig.namedCredentialApiName = profile.Named_Credential_Api_Name__c;
+            profileConfig.projectId = profile.Project_Id__c;
+            profileConfig.issueTypeId = profile.Issue_Type_Id__c;
+            profileConfig.projectKey = profile.Project_Key__c;
+            profileConfig.browseBaseUrl = profile.Browse_Base_Url__c;
+            profileConfig.openIssueJqlClause = String.isBlank(profile.Open_Issue_Jql_Clause__c)
+                ? 'statusCategory != Done ORDER BY updated DESC'
+                : profile.Open_Issue_Jql_Clause__c;
+            profileConfig.enforceProjectScope = true;
+            profileConfig.requireReporterMatchForRead = true;
+            profileConfig.requireReporterMatchForWrite = true;
+            profileConfig.exposeInternalComments = false;
+            profileConfig.sharedReporterAccountId = profile.Shared_Reporter_Account_Id__c;
+            profileConfig.sharedReporterDisplayName = profile.Shared_Reporter_Display_Name__c;
+            validateRequiredConfiguration(profileConfig, 'employee-default Jira connector profile');
+            return normalizeConfiguration(profileConfig);
         }
 
         Map<String, String> configValuesByKey = new Map<String, String>();
-        for (Jira_Demo_Setting__mdt record : [
-            SELECT SettingKey__c, SettingValue__c
-            FROM Jira_Demo_Setting__mdt
-            WHERE SettingType__c = 'Config'
-        ]) {
-            configValuesByKey.put(record.SettingKey__c, record.SettingValue__c);
+        for (Jira_Demo_Setting__mdt record : Jira_Demo_Setting__mdt.getAll().values()) {
+            if (record.SettingType__c == 'Config') {
+                configValuesByKey.put(record.SettingKey__c, record.SettingValue__c);
+            }
         }
 
         JiraConfiguration config = new JiraConfiguration();
@@ -53,25 +119,87 @@ public with sharing class JiraIntegrationSupport {
         config.openIssueJqlClause = String.isBlank(configValuesByKey.get('OpenIssueJqlClause'))
             ? 'statusCategory != Done ORDER BY updated DESC'
             : configValuesByKey.get('OpenIssueJqlClause');
+        config.impactFieldKey = configValuesByKey.get('ImpactFieldKey');
+        config.urgencyFieldKey = configValuesByKey.get('UrgencyFieldKey');
+        config.severityFieldKey = configValuesByKey.get('SeverityFieldKey');
+        config.allowedImpactOptionIds = parseCsvValues(configValuesByKey.get('AllowedImpactOptionIds'));
+        config.allowedUrgencyOptionIds = parseCsvValues(configValuesByKey.get('AllowedUrgencyOptionIds'));
+        config.allowedSeverityOptionIds = parseCsvValues(configValuesByKey.get('AllowedSeverityOptionIds'));
+        config.enforceProjectScope = parseBoolean(configValuesByKey.get('EnforceProjectScope'), true);
+        config.requireReporterMatchForRead = parseBoolean(configValuesByKey.get('RequireReporterMatchForRead'), false);
+        config.requireReporterMatchForWrite = parseBoolean(configValuesByKey.get('RequireReporterMatchForWrite'), false);
+        config.exposeInternalComments = parseBoolean(configValuesByKey.get('ExposeInternalComments'), false);
+        config.sharedReporterAccountId = configValuesByKey.get('SharedReporterAccountId');
+        config.sharedReporterDisplayName = configValuesByKey.get('SharedReporterDisplayName');
 
-        List<String> missingKeys = new List<String>();
+        validateRequiredConfiguration(config, 'legacy Jira_Demo_Setting__mdt configuration');
+        return normalizeConfiguration(config);
+    }
+
+    private static JiraConfiguration normalizeConfiguration(JiraConfiguration config) {
+        if (config.allowedImpactOptionIds == null) {
+            config.allowedImpactOptionIds = new Set<String>();
+        }
+        if (config.allowedUrgencyOptionIds == null) {
+            config.allowedUrgencyOptionIds = new Set<String>();
+        }
+        if (config.allowedSeverityOptionIds == null) {
+            config.allowedSeverityOptionIds = new Set<String>();
+        }
+        config.enforceProjectScope = config.enforceProjectScope == null ? true : config.enforceProjectScope;
+        config.requireReporterMatchForRead = config.requireReporterMatchForRead == null ? false : config.requireReporterMatchForRead;
+        config.requireReporterMatchForWrite = config.requireReporterMatchForWrite == null ? false : config.requireReporterMatchForWrite;
+        config.exposeInternalComments = config.exposeInternalComments == null ? false : config.exposeInternalComments;
+        return config;
+    }
+
+    private static void validateRequiredConfiguration(JiraConfiguration config, String sourceLabel) {
+        List<String> missingValues = new List<String>();
         if (String.isBlank(config.namedCredentialApiName)) {
-            missingKeys.add('NamedCredentialApiName');
+            missingValues.add('Named Credential API name');
         }
         if (String.isBlank(config.projectId)) {
-            missingKeys.add('ProjectId');
+            missingValues.add('project ID');
         }
         if (String.isBlank(config.issueTypeId)) {
-            missingKeys.add('IssueTypeId');
+            missingValues.add('issue type ID');
         }
-        if (!missingKeys.isEmpty()) {
-            throw new JiraIntegrationException(
-                'Missing Jira demo configuration values: ' + String.join(missingKeys, ', ') +
-                '. Add matching Jira_Demo_Setting__mdt config records before running the direct Jira actions.'
+        if (!missingValues.isEmpty()) {
+            throw newException(
+                'CONFIGURATION',
+                null,
+                false,
+                'The ' + sourceLabel + ' is missing ' + String.join(missingValues, ', ') +
+                '. Configure the Jira Connector Mapping workspace before running employee Jira actions.'
             );
         }
+    }
 
-        return config;
+    public static List<String> validateConfigurationReadiness(JiraConfiguration config) {
+        List<String> issues = new List<String>();
+        addMissingOrPlaceholderIssue(issues, 'NamedCredentialApiName', config.namedCredentialApiName);
+        addMissingOrPlaceholderIssue(issues, 'ProjectId', config.projectId);
+        addMissingOrPlaceholderIssue(issues, 'IssueTypeId', config.issueTypeId);
+        addMissingOrPlaceholderIssue(issues, 'ProjectKey', config.projectKey);
+        addMissingOrPlaceholderIssue(issues, 'BrowseBaseUrl', config.browseBaseUrl);
+        if (!String.isBlank(config.projectKey) &&
+            !Pattern.matches('^[A-Za-z][A-Za-z0-9_]*$', config.projectKey.trim())) {
+            issues.add('ProjectKey has an invalid Jira key format.');
+        }
+        if (!String.isBlank(config.browseBaseUrl) &&
+            !config.browseBaseUrl.trim().toLowerCase().startsWith('https://')) {
+            issues.add('BrowseBaseUrl must use HTTPS.');
+        }
+        if (!String.isBlank(config.impactFieldKey)) {
+            validateConfiguredFieldKey(issues, 'ImpactFieldKey', config.impactFieldKey);
+        }
+        if (!String.isBlank(config.urgencyFieldKey)) {
+            validateConfiguredFieldKey(issues, 'UrgencyFieldKey', config.urgencyFieldKey);
+        }
+        if (!String.isBlank(config.severityFieldKey)) {
+            validateConfiguredFieldKey(issues, 'SeverityFieldKey', config.severityFieldKey);
+        }
+        return issues;
     }
 
     public static String resolveSalesforceUsername(String overrideUsername) {
@@ -85,27 +213,53 @@ public with sharing class JiraIntegrationSupport {
             return mappingOverridesByUsername.get(resolvedUsername);
         }
 
-        List<Jira_Demo_Setting__mdt> records = [
-            SELECT SettingKey__c, SettingValue__c, AuxValue__c
-            FROM Jira_Demo_Setting__mdt
-            WHERE SettingType__c = 'UserMapping'
-            AND SettingKey__c = :resolvedUsername
-            LIMIT 1
-        ];
-
-        if (records.isEmpty() || String.isBlank(records[0].SettingValue__c)) {
-            throw new JiraIntegrationException(
-                'No Jira reporter mapping is configured for Salesforce username "' + resolvedUsername +
-                '". Add a Jira_Demo_Setting__mdt record with SettingType__c = UserMapping, ' +
-                'SettingKey__c = the Salesforce username, and SettingValue__c = the Jira accountId.'
-            );
+        Jira_Demo_Setting__mdt mappingRecord;
+        for (Jira_Demo_Setting__mdt record : Jira_Demo_Setting__mdt.getAll().values()) {
+            if (record.SettingType__c == 'UserMapping' && record.SettingKey__c == resolvedUsername) {
+                mappingRecord = record;
+                break;
+            }
         }
 
-        JiraUserMapping mapping = new JiraUserMapping();
-        mapping.salesforceUsername = resolvedUsername;
-        mapping.jiraAccountId = records[0].SettingValue__c;
-        mapping.jiraDisplayName = records[0].AuxValue__c;
-        return mapping;
+        if (mappingRecord != null && !String.isBlank(mappingRecord.SettingValue__c)) {
+            JiraUserMapping explicitMapping = new JiraUserMapping();
+            explicitMapping.salesforceUsername = resolvedUsername;
+            explicitMapping.jiraAccountId = mappingRecord.SettingValue__c;
+            explicitMapping.jiraDisplayName = mappingRecord.AuxValue__c;
+            return explicitMapping;
+        }
+
+        JiraConfiguration config = getConfiguration();
+        if (!String.isBlank(config.sharedReporterAccountId)) {
+            JiraUserMapping sharedMapping = new JiraUserMapping();
+            sharedMapping.salesforceUsername = 'Shared Jira reporter';
+            sharedMapping.jiraAccountId = config.sharedReporterAccountId.trim();
+            sharedMapping.jiraDisplayName = String.isBlank(config.sharedReporterDisplayName)
+                ? 'Shared Jira reporter'
+                : config.sharedReporterDisplayName.trim();
+            return sharedMapping;
+        }
+
+        Map<String, Object> currentUser = sendRequestVia(
+            config.namedCredentialApiName,
+            'GET',
+            '/rest/api/3/myself',
+            null,
+            null
+        );
+        JiraUserMapping principalMapping = new JiraUserMapping();
+        principalMapping.salesforceUsername = resolvedUsername;
+        principalMapping.jiraAccountId = stringValue(currentUser.get('accountId'));
+        principalMapping.jiraDisplayName = stringValue(currentUser.get('displayName'));
+        if (String.isBlank(principalMapping.jiraAccountId)) {
+            throw newException(
+                'CONFIGURATION',
+                null,
+                false,
+                'Jira did not return an accountId for the Named Credential principal. Configure a shared reporter on the employee-default profile.'
+            );
+        }
+        return principalMapping;
     }
 
     public static List<String> buildIssueDescriptionLines(
@@ -171,13 +325,54 @@ public with sharing class JiraIntegrationSupport {
         Map<String, String> queryParams,
         Object body
     ) {
-        JiraConfiguration config = getConfiguration();
+        return sendRequestVia(getConfiguration().namedCredentialApiName, method, path, queryParams, body);
+    }
+
+    // Multi-project variant: callers pass an explicit Named Credential so a single
+    // fulfiller runtime can reach several Jira_Connector_Profile__c projects while
+    // reusing the same hardened error taxonomy and response parsing.
+    public static Map<String, Object> sendRequestVia(
+        String namedCredentialApiName,
+        String method,
+        String path,
+        Map<String, String> queryParams,
+        Object body
+    ) {
+        Object parsed = sendRequestRawVia(namedCredentialApiName, method, path, queryParams, body);
+        if (parsed instanceof Map<String, Object>) {
+            return (Map<String, Object>) parsed;
+        }
+        throw newException(
+            'MALFORMED_RESPONSE',
+            null,
+            true,
+            'Jira returned an unexpected response shape for ' + method + ' ' + path + '.'
+        );
+    }
+
+    // Raw variant that tolerates Jira endpoints returning a top-level JSON array
+    // (e.g. assignable user search). Top-level arrays are wrapped as {'__list': [...]}.
+    public static Map<String, Object> sendRequestRawVia(
+        String namedCredentialApiName,
+        String method,
+        String path,
+        Map<String, String> queryParams,
+        Object body
+    ) {
+        if (String.isBlank(namedCredentialApiName)) {
+            throw newException(
+                'CONFIGURATION',
+                null,
+                false,
+                'A Named Credential must be configured before calling Jira.'
+            );
+        }
         HttpRequest request = new HttpRequest();
         request.setMethod(method);
         request.setHeader('Accept', 'application/json');
         request.setTimeout(60000);
 
-        String endpoint = 'callout:' + config.namedCredentialApiName + path;
+        String endpoint = 'callout:' + namedCredentialApiName + path;
         if (queryParams != null && !queryParams.isEmpty()) {
             List<String> encodedPairs = new List<String>();
             for (String key : queryParams.keySet()) {
@@ -199,11 +394,24 @@ public with sharing class JiraIntegrationSupport {
             request.setBody(JSON.serialize(body));
         }
 
-        HttpResponse response = new Http().send(request);
+        HttpResponse response;
+        try {
+            response = new Http().send(request);
+            if (method == 'GET' && response.getStatusCode() >= 500) {
+                response = new Http().send(request);
+            }
+        } catch (CalloutException calloutException) {
+            throw newException(
+                'AVAILABILITY',
+                null,
+                true,
+                'Jira is temporarily unavailable. Try the action again later.'
+            );
+        }
         Integer statusCode = response.getStatusCode();
 
         if (statusCode < 200 || statusCode >= 300) {
-            throw new JiraIntegrationException(extractErrorMessage(response));
+            throw buildHttpException(statusCode);
         }
 
         if (String.isBlank(response.getBody())) {
@@ -214,8 +422,14 @@ public with sharing class JiraIntegrationSupport {
         if (parsed instanceof Map<String, Object>) {
             return (Map<String, Object>) parsed;
         }
+        if (parsed instanceof List<Object>) {
+            return new Map<String, Object>{ '__list' => parsed };
+        }
 
-        throw new JiraIntegrationException(
+        throw newException(
+            'MALFORMED_RESPONSE',
+            statusCode,
+            true,
             'Jira returned an unexpected response shape for ' + method + ' ' + path + '.'
         );
     }
@@ -232,6 +446,14 @@ public with sharing class JiraIntegrationSupport {
         String sourceReference,
         String reporterSalesforceUsername
     ) {
+        JiraDirectActionSupport.validateCreateInputs(
+            jiraSummary,
+            jiraDescription,
+            jiraPriority,
+            requesterEmail,
+            channel,
+            sourceReference
+        );
         JiraConfiguration config = getConfiguration();
         JiraUserMapping reporter = getRequiredUserMapping(reporterSalesforceUsername);
 
@@ -249,13 +471,16 @@ public with sharing class JiraIntegrationSupport {
             fields.put('priority', new Map<String, Object>{ 'name' => jiraPriority });
         }
         if (!String.isBlank(jiraImpactOptionId)) {
-            fields.put('customfield_10004', new Map<String, Object>{ 'id' => jiraImpactOptionId });
+            validateOptionId('impact', config.impactFieldKey, jiraImpactOptionId, config.allowedImpactOptionIds);
+            fields.put(config.impactFieldKey, new Map<String, Object>{ 'id' => jiraImpactOptionId });
         }
         if (!String.isBlank(jiraUrgencyOptionId)) {
-            fields.put('customfield_10043', new Map<String, Object>{ 'id' => jiraUrgencyOptionId });
+            validateOptionId('urgency', config.urgencyFieldKey, jiraUrgencyOptionId, config.allowedUrgencyOptionIds);
+            fields.put(config.urgencyFieldKey, new Map<String, Object>{ 'id' => jiraUrgencyOptionId });
         }
         if (!String.isBlank(jiraSeverityOptionId)) {
-            fields.put('customfield_10048', new Map<String, Object>{ 'id' => jiraSeverityOptionId });
+            validateOptionId('severity', config.severityFieldKey, jiraSeverityOptionId, config.allowedSeverityOptionIds);
+            fields.put(config.severityFieldKey, new Map<String, Object>{ 'id' => jiraSeverityOptionId });
         }
 
         return sendRequest(
@@ -267,15 +492,18 @@ public with sharing class JiraIntegrationSupport {
     }
 
     public static Map<String, Object> getIssueByKey(String jiraIssueKey) {
-        return sendRequest(
+        String validatedIssueKey = JiraDirectActionSupport.validateIssueKey(jiraIssueKey);
+        Map<String, Object> issueData = sendRequest(
             'GET',
-            '/rest/api/3/issue/' + EncodingUtil.urlEncode(jiraIssueKey, 'UTF-8'),
+            '/rest/api/3/issue/' + EncodingUtil.urlEncode(validatedIssueKey, 'UTF-8'),
             new Map<String, String>{
-                'fields' => 'summary,status,reporter,assignee,updated,comment,priority,resolution',
+                'fields' => 'project,summary,status,reporter,assignee,updated,comment,priority,resolution',
                 'expand' => 'changelog'
             },
             null
         );
+        validateIssueAccess(issueData, false);
+        return issueData;
     }
 
     public static Map<String, Object> searchIssuesForReporter(String reporterSalesforceUsername, Integer maxResults) {
@@ -291,7 +519,7 @@ public with sharing class JiraIntegrationSupport {
             jqlSegments.add(config.openIssueJqlClause);
         }
 
-        Integer resolvedMaxResults = (maxResults == null || maxResults <= 0) ? 10 : Math.min(maxResults, 25);
+        Integer resolvedMaxResults = (maxResults == null || maxResults <= 0) ? MAX_OPEN_ISSUES : Math.min(maxResults, MAX_OPEN_ISSUES);
 
         return sendRequest(
             'GET',
@@ -308,28 +536,50 @@ public with sharing class JiraIntegrationSupport {
     public static void updateIssue(
         String jiraIssueIdOrKey,
         String jiraSummary,
+        String jiraPriority,
         String jiraImpactOptionId,
         String jiraUrgencyOptionId,
         String jiraSeverityOptionId
     ) {
+        String validatedIssueKey = JiraDirectActionSupport.validateIssueKey(jiraIssueIdOrKey);
+        JiraDirectActionSupport.validateSummary(jiraSummary);
+        JiraDirectActionSupport.validatePriority(jiraPriority);
+        Map<String, Object> issueData = getIssueByKey(validatedIssueKey);
+        validateIssueAccess(issueData, true);
+        if (isClosedIssue(issueData)) {
+            throw newException(
+                'VALIDATION',
+                null,
+                false,
+                'Jira issue ' + jiraIssueIdOrKey + ' is closed. Create a new request or add a follow-up comment instead of changing triage fields.'
+            );
+        }
+
+        JiraConfiguration config = getConfiguration();
         Map<String, Object> fields = new Map<String, Object>();
         if (!String.isBlank(jiraSummary)) {
             fields.put('summary', jiraSummary);
         }
+        if (!String.isBlank(jiraPriority)) {
+            fields.put('priority', new Map<String, Object>{ 'name' => jiraPriority });
+        }
         if (!String.isBlank(jiraImpactOptionId)) {
-            fields.put('customfield_10004', new Map<String, Object>{ 'id' => jiraImpactOptionId });
+            validateOptionId('impact', config.impactFieldKey, jiraImpactOptionId, config.allowedImpactOptionIds);
+            fields.put(config.impactFieldKey, new Map<String, Object>{ 'id' => jiraImpactOptionId });
         }
         if (!String.isBlank(jiraUrgencyOptionId)) {
-            fields.put('customfield_10043', new Map<String, Object>{ 'id' => jiraUrgencyOptionId });
+            validateOptionId('urgency', config.urgencyFieldKey, jiraUrgencyOptionId, config.allowedUrgencyOptionIds);
+            fields.put(config.urgencyFieldKey, new Map<String, Object>{ 'id' => jiraUrgencyOptionId });
         }
         if (!String.isBlank(jiraSeverityOptionId)) {
-            fields.put('customfield_10048', new Map<String, Object>{ 'id' => jiraSeverityOptionId });
+            validateOptionId('severity', config.severityFieldKey, jiraSeverityOptionId, config.allowedSeverityOptionIds);
+            fields.put(config.severityFieldKey, new Map<String, Object>{ 'id' => jiraSeverityOptionId });
         }
 
         if (!fields.isEmpty()) {
             sendRequest(
                 'PUT',
-                '/rest/api/3/issue/' + EncodingUtil.urlEncode(jiraIssueIdOrKey, 'UTF-8'),
+                '/rest/api/3/issue/' + EncodingUtil.urlEncode(validatedIssueKey, 'UTF-8'),
                 null,
                 new Map<String, Object>{ 'fields' => fields }
             );
@@ -337,13 +587,13 @@ public with sharing class JiraIntegrationSupport {
     }
 
     public static void addComment(String jiraIssueIdOrKey, String commentText) {
-        if (String.isBlank(commentText)) {
-            return;
-        }
+        String validatedIssueKey = JiraDirectActionSupport.validateIssueKey(jiraIssueIdOrKey);
+        JiraDirectActionSupport.validateComment(commentText);
 
+        validateIssueAccess(getIssueByKey(validatedIssueKey), true);
         sendRequest(
             'POST',
-            '/rest/api/3/issue/' + EncodingUtil.urlEncode(jiraIssueIdOrKey, 'UTF-8') + '/comment',
+            '/rest/api/3/issue/' + EncodingUtil.urlEncode(validatedIssueKey, 'UTF-8') + '/comment',
             null,
             new Map<String, Object>{
                 'body' => buildAdfDocument(buildStampedCommentLines(commentText))
@@ -366,6 +616,7 @@ public with sharing class JiraIntegrationSupport {
             }
         } catch (Exception ignoredException) {
             // Fall back to the Salesforce username if a friendly mapping is unavailable.
+            commenterLabel = String.isBlank(commenterLabel) ? ignoredException.getTypeName() : commenterLabel;
         }
 
         lines.add('Customer update from ' + commenterLabel + ' via Agentforce:');
@@ -388,11 +639,17 @@ public with sharing class JiraIntegrationSupport {
     public static String summarizeIssue(Map<String, Object> issueData) {
         String issueKey = stringValue(issueData.get('key'));
         Map<String, Object> fields = mapValue(issueData.get('fields'));
-        String summary = stringValue(fields.get('summary'));
+        String summary = JiraDirectActionSupport.sanitizeExternalText(stringValue(fields.get('summary')), 255);
         String status = issueStatus(issueData);
         String priority = issuePriority(issueData);
-        String reporter = stringValue(mapValue(fields.get('reporter')).get('displayName'));
-        String assignee = stringValue(mapValue(fields.get('assignee')).get('displayName'));
+        String reporter = JiraDirectActionSupport.sanitizeExternalText(
+            stringValue(mapValue(fields.get('reporter')).get('displayName')),
+            120
+        );
+        String assignee = JiraDirectActionSupport.sanitizeExternalText(
+            stringValue(mapValue(fields.get('assignee')).get('displayName')),
+            120
+        );
         String resolution = issueResolution(issueData);
 
         List<String> metadataParts = new List<String>();
@@ -442,6 +699,37 @@ public with sharing class JiraIntegrationSupport {
         return String.isBlank(issueSummary)
             ? 'Latest update: ' + latestUpdate + '.'
             : issueSummary + ' Latest update: ' + latestUpdate + '.';
+    }
+
+    public static String summarizeIssueForList(Map<String, Object> issueData) {
+        Map<String, Object> fields = mapValue(issueData.get('fields'));
+        String issueKey = JiraDirectActionSupport.sanitizeExternalText(stringValue(issueData.get('key')), 40);
+        String status = JiraDirectActionSupport.sanitizeExternalText(issueStatus(issueData), 80);
+        String priority = JiraDirectActionSupport.sanitizeExternalText(issuePriority(issueData), 80);
+        String summary = JiraDirectActionSupport.sanitizeExternalText(stringValue(fields.get('summary')), 180);
+        String latestUpdate = JiraDirectActionSupport.sanitizeExternalText(describeLatestUpdate(issueData), 220);
+
+        List<String> headingParts = new List<String>();
+        if (!String.isBlank(status)) {
+            headingParts.add(status);
+        }
+        if (!String.isBlank(priority)) {
+            headingParts.add(priority);
+        }
+
+        String heading = '• ' + (String.isBlank(issueKey) ? 'Jira issue' : issueKey);
+        if (!headingParts.isEmpty()) {
+            heading += ' — ' + String.join(headingParts, ' · ');
+        }
+
+        List<String> lines = new List<String>{ heading };
+        if (!String.isBlank(summary)) {
+            lines.add('  ' + summary);
+        }
+        if (!String.isBlank(latestUpdate)) {
+            lines.add('  Latest: ' + latestUpdate);
+        }
+        return String.join(lines, '\n');
     }
 
     public static String describeLatestUpdate(Map<String, Object> issueData) {
@@ -501,6 +789,35 @@ public with sharing class JiraIntegrationSupport {
         return String.join(renderedComments, '\n');
     }
 
+    public static void validateWriteConfirmation(
+        String jiraIssueIdOrKey,
+        Boolean confirmedByEmployee,
+        String confirmedJiraIssueKey,
+        String commentText,
+        String confirmedCommentText
+    ) {
+        if (confirmedByEmployee != true) {
+            throw newException('VALIDATION', null, false, 'The employee must explicitly confirm the Jira write before it can be sent.');
+        }
+        if (!String.isBlank(confirmedJiraIssueKey) && !equalsIgnoreCaseTrimmed(jiraIssueIdOrKey, confirmedJiraIssueKey)) {
+            throw newException('VALIDATION', null, false, 'The confirmed Jira issue key does not match the requested Jira issue key.');
+        }
+        if (!String.isBlank(commentText) && !equalsTrimmed(commentText, confirmedCommentText)) {
+            throw newException('VALIDATION', null, false, 'The confirmed Jira comment text must exactly match the comment that will be sent.');
+        }
+    }
+
+    public static void validateIssueAccess(Map<String, Object> issueData, Boolean forWrite) {
+        JiraConfiguration config = getConfiguration();
+        if (config.enforceProjectScope == true) {
+            validateProjectScope(issueData, config);
+        }
+        if ((forWrite == true && config.requireReporterMatchForWrite == true) ||
+            (forWrite != true && config.requireReporterMatchForRead == true)) {
+            validateReporterScope(issueData);
+        }
+    }
+
     public static String summarizeRecentHistory(Map<String, Object> issueData, Integer maxCount) {
         List<Object> histories = listValue(mapValue(issueData.get('changelog')).get('histories'));
         Integer resolvedMaxCount = (maxCount == null || maxCount <= 0) ? 3 : maxCount;
@@ -530,6 +847,117 @@ public with sharing class JiraIntegrationSupport {
 
     public static String stringValue(Object candidate) {
         return candidate == null ? '' : String.valueOf(candidate);
+    }
+
+    private static void validateProjectScope(Map<String, Object> issueData, JiraConfiguration config) {
+        Map<String, Object> project = mapValue(mapValue(issueData.get('fields')).get('project'));
+        String returnedProjectId = stringValue(project.get('id'));
+        String returnedProjectKey = stringValue(project.get('key'));
+        if (String.isBlank(returnedProjectId) && String.isBlank(returnedProjectKey)) {
+            throw newException('SCOPE', null, false, 'Jira issue response did not include project information for scope validation.');
+        }
+        if (!String.isBlank(config.projectId) && returnedProjectId != config.projectId) {
+            throw newException('SCOPE', null, false, 'Jira issue is outside the configured demo project.');
+        }
+        if (!String.isBlank(config.projectKey) && returnedProjectKey != config.projectKey) {
+            throw newException('SCOPE', null, false, 'Jira issue is outside the configured demo project.');
+        }
+    }
+
+    private static void validateReporterScope(Map<String, Object> issueData) {
+        JiraUserMapping mapping = getRequiredUserMapping(null);
+        String reporterAccountId = stringValue(mapValue(mapValue(issueData.get('fields')).get('reporter')).get('accountId'));
+        if (String.isBlank(reporterAccountId)) {
+            throw newException('SCOPE', null, false, 'Jira issue response did not include reporter accountId for access validation.');
+        }
+        if (reporterAccountId != mapping.jiraAccountId) {
+            throw newException('SCOPE', null, false, 'Jira issue is not reported by the mapped Jira account for the current Salesforce user.');
+        }
+    }
+
+    private static void validateOptionId(
+        String label,
+        String fieldKey,
+        String optionId,
+        Set<String> allowedOptionIds
+    ) {
+        if (String.isBlank(optionId)) {
+            return;
+        }
+        if (String.isBlank(fieldKey)) {
+            throw newException(
+                'CONFIGURATION',
+                null,
+                false,
+                'The Jira ' + label + ' field is not configured for the employee-default connector profile.'
+            );
+        }
+        if (allowedOptionIds == null || allowedOptionIds.isEmpty()) {
+            throw newException('CONFIGURATION', null, false, 'The Jira ' + label + ' option allowlist is not configured.');
+        }
+        if (!allowedOptionIds.contains(optionId.trim())) {
+            throw newException('VALIDATION', null, false, 'Jira ' + label + ' option id is not in the configured allowlist.');
+        }
+    }
+
+    private static String valueOrDefault(String candidate, String defaultValue) {
+        return String.isBlank(candidate) ? defaultValue : candidate.trim();
+    }
+
+    private static Boolean parseBoolean(String rawValue, Boolean defaultValue) {
+        if (String.isBlank(rawValue)) {
+            return defaultValue;
+        }
+        String normalized = rawValue.trim().toLowerCase();
+        if (normalized == 'true') {
+            return true;
+        }
+        if (normalized == 'false') {
+            return false;
+        }
+        return defaultValue;
+    }
+
+    private static Set<String> parseCsvValues(String rawValue) {
+        Set<String> values = new Set<String>();
+        if (String.isBlank(rawValue)) {
+            return values;
+        }
+        for (String value : rawValue.split(',')) {
+            if (!String.isBlank(value)) {
+                values.add(value.trim());
+            }
+        }
+        return values;
+    }
+
+    private static void addMissingOrPlaceholderIssue(List<String> issues, String label, String value) {
+        if (String.isBlank(value)) {
+            issues.add(label + ' is missing.');
+            return;
+        }
+        String normalized = value.trim().toUpperCase();
+        if (normalized.startsWith('YOUR_') || normalized.contains('PLACEHOLDER') || normalized == 'TBD') {
+            issues.add(label + ' still contains a placeholder value.');
+        }
+    }
+
+    private static void validateConfiguredFieldKey(List<String> issues, String label, String value) {
+        if (String.isBlank(value) || !Pattern.matches('^[A-Za-z][A-Za-z0-9_]*$', value.trim())) {
+            issues.add(label + ' is missing or malformed.');
+        }
+    }
+
+    private static Boolean equalsIgnoreCaseTrimmed(String firstValue, String secondValue) {
+        return String.isBlank(firstValue) || String.isBlank(secondValue)
+            ? false
+            : firstValue.trim().toLowerCase() == secondValue.trim().toLowerCase();
+    }
+
+    private static Boolean equalsTrimmed(String firstValue, String secondValue) {
+        return String.isBlank(firstValue) || String.isBlank(secondValue)
+            ? false
+            : firstValue.trim() == secondValue.trim();
     }
 
     @TestVisible
@@ -569,9 +997,79 @@ public with sharing class JiraIntegrationSupport {
             }
         } catch (Exception ignoredException) {
             // Fall back to the HTTP status-based message below.
+            defaultMessage = String.isBlank(defaultMessage)
+                ? 'Jira callout failed: ' + ignoredException.getTypeName() + '.'
+                : defaultMessage;
         }
 
         return defaultMessage;
+    }
+
+    private static JiraIntegrationException buildHttpException(Integer statusCode) {
+        if (statusCode == 400 || statusCode == 409 || statusCode == 422) {
+            return newException(
+                'VALIDATION',
+                statusCode,
+                false,
+                'Jira rejected the request. Review the issue key and configured field values.'
+            );
+        }
+        if (statusCode == 401) {
+            return newException(
+                'AUTHENTICATION',
+                statusCode,
+                false,
+                'Jira authentication failed. Ask an administrator to verify the Named Credential.'
+            );
+        }
+        if (statusCode == 403) {
+            return newException(
+                'AUTHORIZATION',
+                statusCode,
+                false,
+                'The Jira integration user is not allowed to perform this action.'
+            );
+        }
+        if (statusCode == 404) {
+            return newException(
+                'NOT_FOUND',
+                statusCode,
+                false,
+                'The requested Jira resource was not found in the configured project.'
+            );
+        }
+        if (statusCode == 408 || statusCode == 429) {
+            return newException(
+                statusCode == 429 ? 'RATE_LIMIT' : 'TIMEOUT',
+                statusCode,
+                true,
+                statusCode == 429
+                    ? 'Jira is rate limiting requests. Try the action again later.'
+                    : 'The Jira request timed out. Try the action again.'
+            );
+        }
+        if (statusCode >= 500) {
+            return newException(
+                'AVAILABILITY',
+                statusCode,
+                true,
+                'Jira is temporarily unavailable. Try the action again later.'
+            );
+        }
+        return newException(
+            'INTEGRATION',
+            statusCode,
+            false,
+            'The Jira action failed with HTTP status ' + statusCode + '.'
+        );
+    }
+
+    public static String escapeJql(String rawValue) {
+        return escapeJqlLiteral(rawValue);
+    }
+
+    public static String adfToText(Object candidate) {
+        return adfToPlainText(candidate);
     }
 
     @TestVisible
@@ -677,13 +1175,26 @@ public with sharing class JiraIntegrationSupport {
             String escapedValue = rawValue.replace('\\', '\\\\').replace('"', '\\"');
             return (Datetime) JSON.deserialize('"' + escapedValue + '"', Datetime.class);
         } catch (Exception ignoredException) {
+            String ignoredMessage = ignoredException.getMessage();
+            if (!String.isBlank(ignoredMessage)) {
+                return null;
+            }
             return null;
         }
     }
 
     private static String summarizeCommentEntry(Map<String, Object> commentData) {
-        String authorName = stringValue(mapValue(commentData.get('author')).get('displayName'));
-        String commentBody = shortenText(adfToPlainText(commentData.get('body')), 220);
+        if (isInternalComment(commentData)) {
+            return '';
+        }
+        String authorName = JiraDirectActionSupport.sanitizeExternalText(
+            stringValue(mapValue(commentData.get('author')).get('displayName')),
+            120
+        );
+        String commentBody = JiraDirectActionSupport.sanitizeExternalText(
+            adfToPlainText(commentData.get('body')),
+            220
+        );
         String commentType = determineCommentType(commentData);
 
         List<String> parts = new List<String>{ commentType };
@@ -695,22 +1206,29 @@ public with sharing class JiraIntegrationSupport {
     }
 
     private static String determineCommentType(Map<String, Object> commentData) {
-        String jsdPublicFlag = stringValue(commentData.get('jsdPublic')).toLowerCase();
-        if (jsdPublicFlag == 'false') {
+        if (isInternalComment(commentData)) {
             return 'internal note';
         }
+        return 'public comment';
+    }
+
+    private static Boolean isInternalComment(Map<String, Object> commentData) {
+        String jsdPublicFlag = stringValue(commentData.get('jsdPublic')).toLowerCase();
+        if (jsdPublicFlag == 'false') {
+            return true;
+        }
         if (jsdPublicFlag == 'true') {
-            return 'public comment';
+            return false;
         }
 
         String publicFlag = stringValue(commentData.get('public')).toLowerCase();
         if (publicFlag == 'false') {
-            return 'internal note';
+            return true;
         }
         if (publicFlag == 'true') {
-            return 'public comment';
+            return false;
         }
-        return 'comment';
+        return false;
     }
 
     private static String summarizeHistoryEntry(Map<String, Object> historyData) {
@@ -722,13 +1240,13 @@ public with sharing class JiraIntegrationSupport {
         List<String> renderedChanges = new List<String>();
         for (Object itemEntry : items) {
             Map<String, Object> itemData = mapValue(itemEntry);
-            String fieldName = stringValue(itemData.get('field'));
+            String fieldName = JiraDirectActionSupport.sanitizeExternalText(stringValue(itemData.get('field')), 80);
             if (String.isBlank(fieldName)) {
                 continue;
             }
 
-            String fromValue = stringValue(itemData.get('fromString'));
-            String toValue = stringValue(itemData.get('toString'));
+            String fromValue = JiraDirectActionSupport.sanitizeExternalText(stringValue(itemData.get('fromString')), 120);
+            String toValue = JiraDirectActionSupport.sanitizeExternalText(stringValue(itemData.get('toString')), 120);
             if (!String.isBlank(fromValue) && !String.isBlank(toValue)) {
                 renderedChanges.add(fieldName + ' changed from ' + fromValue + ' to ' + toValue);
             } else if (!String.isBlank(toValue)) {
@@ -748,7 +1266,10 @@ public with sharing class JiraIntegrationSupport {
             return '';
         }
 
-        String authorName = stringValue(mapValue(historyData.get('author')).get('displayName'));
+        String authorName = JiraDirectActionSupport.sanitizeExternalText(
+            stringValue(mapValue(historyData.get('author')).get('displayName')),
+            120
+        );
         String prefix = String.isBlank(authorName) ? 'field update' : 'field update by ' + authorName;
         return prefix + ': ' + String.join(renderedChanges, '; ');
     }

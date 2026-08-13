@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Employee_Default__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Select exactly one active profile for employee-facing Jira actions.</description>
+    <label>Employee Default</label>
+    <type>Checkbox</type>
+</CustomField>

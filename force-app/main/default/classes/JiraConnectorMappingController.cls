@@ -30,6 +30,12 @@ public with sharing class JiraConnectorMappingController {
         @AuraEnabled public String description { get; set; }
     }
 
+    public class ConnectionInfoDTO {
+        @AuraEnabled public String baseUrl { get; set; }
+        @AuraEnabled public String accountId { get; set; }
+        @AuraEnabled public String displayName { get; set; }
+    }
+
     public class ConnectorProfileDTO {
         @AuraEnabled public Id recordId { get; set; }
         @AuraEnabled public String connectorKey { get; set; }
@@ -47,6 +53,9 @@ public with sharing class JiraConnectorMappingController {
         @AuraEnabled public String salesforceObjectLabel { get; set; }
         @AuraEnabled public String routeKey { get; set; }
         @AuraEnabled public Boolean activeForAgentforce { get; set; }
+        @AuraEnabled public Boolean employeeDefault { get; set; }
+        @AuraEnabled public String sharedReporterAccountId { get; set; }
+        @AuraEnabled public String sharedReporterDisplayName { get; set; }
     }
 
     public class ProfileInputDTO {
@@ -65,6 +74,9 @@ public with sharing class JiraConnectorMappingController {
         @AuraEnabled public String salesforceObjectLabel { get; set; }
         @AuraEnabled public String routeKey { get; set; }
         @AuraEnabled public Boolean activeForAgentforce { get; set; }
+        @AuraEnabled public Boolean employeeDefault { get; set; }
+        @AuraEnabled public String sharedReporterAccountId { get; set; }
+        @AuraEnabled public String sharedReporterDisplayName { get; set; }
     }
 
     public class CanonicalFieldDTO {
@@ -161,6 +173,31 @@ public with sharing class JiraConnectorMappingController {
             options.add(option(nameValue + ' (' + keyValue + ')', idValue, keyValue));
         }
         return options;
+    }
+
+    @AuraEnabled
+    public static ConnectionInfoDTO getJiraConnectionInfo(String namedCredentialApiName) {
+        String resolvedNamedCredential = resolveNamedCredential(namedCredentialApiName);
+        Map<String, Object> serverInfo = sendJiraRequest(
+            resolvedNamedCredential,
+            'GET',
+            '/rest/api/3/serverInfo',
+            null,
+            null
+        );
+        Map<String, Object> currentUser = sendJiraRequest(
+            resolvedNamedCredential,
+            'GET',
+            '/rest/api/3/myself',
+            null,
+            null
+        );
+
+        ConnectionInfoDTO result = new ConnectionInfoDTO();
+        result.baseUrl = JiraIntegrationSupport.stringValue(serverInfo.get('baseUrl'));
+        result.accountId = JiraIntegrationSupport.stringValue(currentUser.get('accountId'));
+        result.displayName = JiraIntegrationSupport.stringValue(currentUser.get('displayName'));
+        return result;
     }
 
     @AuraEnabled
@@ -269,8 +306,12 @@ public with sharing class JiraConnectorMappingController {
             : input.salesforceObjectLabel.trim();
         profile.Route_Key__c = blankToNull(input.routeKey);
         profile.Is_Active_For_Agentforce__c = input.activeForAgentforce == true;
+        profile.Employee_Default__c = input.employeeDefault == true;
+        profile.Shared_Reporter_Account_Id__c = blankToNull(input.sharedReporterAccountId);
+        profile.Shared_Reporter_Display_Name__c = blankToNull(input.sharedReporterDisplayName);
 
         upsert profile Connector_Key__c;
+        validateSingleEmployeeDefault(profile.Connector_Key__c);
         return buildWorkspace(connectorKey);
     }
 
@@ -589,8 +630,6 @@ public with sharing class JiraConnectorMappingController {
     }
 
     private static Jira_Connector_Profile__c loadSelectedProfile(String requestedConnectorKey) {
-        ensureDefaultProfileExists();
-
         String connectorKey = String.isBlank(requestedConnectorKey) ? null : requestedConnectorKey.trim();
         List<Jira_Connector_Profile__c> profiles;
         if (String.isBlank(connectorKey)) {
@@ -598,7 +637,8 @@ public with sharing class JiraConnectorMappingController {
                 SELECT Id, Name, Connector_Key__c, Named_Credential_Api_Name__c, Project_Id__c, Project_Key__c,
                     Project_Name__c, Issue_Type_Id__c, Issue_Type_Name__c, Browse_Base_Url__c,
                     Open_Issue_Jql_Clause__c, Active__c, Salesforce_Object_Api_Name__c, Salesforce_Object_Label__c,
-                    Route_Key__c, Is_Active_For_Agentforce__c
+                    Route_Key__c, Is_Active_For_Agentforce__c, Employee_Default__c,
+                    Shared_Reporter_Account_Id__c, Shared_Reporter_Display_Name__c
                 FROM Jira_Connector_Profile__c
                 WHERE Active__c = true
                 ORDER BY Name ASC
@@ -609,7 +649,8 @@ public with sharing class JiraConnectorMappingController {
                 SELECT Id, Name, Connector_Key__c, Named_Credential_Api_Name__c, Project_Id__c, Project_Key__c,
                     Project_Name__c, Issue_Type_Id__c, Issue_Type_Name__c, Browse_Base_Url__c,
                     Open_Issue_Jql_Clause__c, Active__c, Salesforce_Object_Api_Name__c, Salesforce_Object_Label__c,
-                    Route_Key__c, Is_Active_For_Agentforce__c
+                    Route_Key__c, Is_Active_For_Agentforce__c, Employee_Default__c,
+                    Shared_Reporter_Account_Id__c, Shared_Reporter_Display_Name__c
                 FROM Jira_Connector_Profile__c
                 WHERE Connector_Key__c = :connectorKey
                 LIMIT 1
@@ -617,45 +658,44 @@ public with sharing class JiraConnectorMappingController {
         }
 
         if (profiles.isEmpty()) {
-            throw new AuraHandledException('No active Jira connector profile is configured.');
+            if (!String.isBlank(connectorKey)) {
+                throw new AuraHandledException('No Jira connector profile matches connector key "' + connectorKey + '".');
+            }
+            return new Jira_Connector_Profile__c(
+                Name = 'New Jira Connector',
+                Connector_Key__c = DEFAULT_CONNECTOR_KEY,
+                Open_Issue_Jql_Clause__c = 'statusCategory != Done ORDER BY updated DESC',
+                Active__c = true,
+                Is_Active_For_Agentforce__c = true,
+                Employee_Default__c = true
+            );
         }
         return profiles[0];
     }
 
-    private static void ensureDefaultProfileExists() {
-        if ([SELECT COUNT() FROM Jira_Connector_Profile__c] > 0) {
-            return;
+    private static void validateSingleEmployeeDefault(String savedConnectorKey) {
+        List<Jira_Connector_Profile__c> defaults = [
+            SELECT Connector_Key__c
+            FROM Jira_Connector_Profile__c
+            WHERE Active__c = true AND Employee_Default__c = true
+            LIMIT 2
+        ];
+        if (defaults.size() > 1) {
+            throw new AuraHandledException(
+                'Only one active Jira connector profile can be the employee default. ' +
+                'Clear Employee Default on the other profile before enabling it for "' + savedConnectorKey + '".'
+            );
         }
-
-        JiraIntegrationSupport.JiraConfiguration config = JiraIntegrationSupport.getConfiguration();
-        Jira_Connector_Profile__c defaultProfile = new Jira_Connector_Profile__c();
-        defaultProfile.Name = 'Default Jira IT';
-        defaultProfile.Connector_Key__c = DEFAULT_CONNECTOR_KEY;
-        defaultProfile.Named_Credential_Api_Name__c = config.namedCredentialApiName;
-        defaultProfile.Project_Id__c = config.projectId;
-        defaultProfile.Project_Key__c = config.projectKey;
-        defaultProfile.Project_Name__c = String.isBlank(config.projectKey) ? 'Default Jira Project' : config.projectKey;
-        defaultProfile.Issue_Type_Id__c = config.issueTypeId;
-        defaultProfile.Issue_Type_Name__c = 'Default Issue Type';
-        defaultProfile.Browse_Base_Url__c = config.browseBaseUrl;
-        defaultProfile.Open_Issue_Jql_Clause__c = config.openIssueJqlClause;
-        defaultProfile.Active__c = true;
-        defaultProfile.Salesforce_Object_Api_Name__c = 'Incident';
-        defaultProfile.Salesforce_Object_Label__c = salesforceObjectLabel('Incident');
-        defaultProfile.Route_Key__c = 'incident';
-        defaultProfile.Is_Active_For_Agentforce__c = false;
-        insert defaultProfile;
     }
 
     private static List<ConnectorProfileDTO> profileDTOs() {
-        ensureDefaultProfileExists();
-
         List<ConnectorProfileDTO> results = new List<ConnectorProfileDTO>();
         for (Jira_Connector_Profile__c profile : [
             SELECT Id, Name, Connector_Key__c, Named_Credential_Api_Name__c, Project_Id__c, Project_Key__c,
                 Project_Name__c, Issue_Type_Id__c, Issue_Type_Name__c, Browse_Base_Url__c,
                 Open_Issue_Jql_Clause__c, Active__c, Salesforce_Object_Api_Name__c, Salesforce_Object_Label__c,
-                Route_Key__c, Is_Active_For_Agentforce__c
+                Route_Key__c, Is_Active_For_Agentforce__c, Employee_Default__c,
+                Shared_Reporter_Account_Id__c, Shared_Reporter_Display_Name__c
             FROM Jira_Connector_Profile__c
             WHERE Active__c = true
             ORDER BY Name ASC
@@ -683,6 +723,9 @@ public with sharing class JiraConnectorMappingController {
         dto.salesforceObjectLabel = profile.Salesforce_Object_Label__c;
         dto.routeKey = profile.Route_Key__c;
         dto.activeForAgentforce = profile.Is_Active_For_Agentforce__c;
+        dto.employeeDefault = profile.Employee_Default__c;
+        dto.sharedReporterAccountId = profile.Shared_Reporter_Account_Id__c;
+        dto.sharedReporterDisplayName = profile.Shared_Reporter_Display_Name__c;
         return dto;
     }
 

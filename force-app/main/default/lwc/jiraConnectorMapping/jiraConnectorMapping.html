@@ -136,6 +136,18 @@
                         onchange={handleProfileDraftChange}
                     ></lightning-input>
                     <lightning-input
+                        name="sharedReporterAccountId"
+                        label="Shared employee reporter account ID"
+                        value={profileDraft.sharedReporterAccountId}
+                        onchange={handleProfileDraftChange}
+                    ></lightning-input>
+                    <lightning-input
+                        name="sharedReporterDisplayName"
+                        label="Shared employee reporter name"
+                        value={profileDraft.sharedReporterDisplayName}
+                        onchange={handleProfileDraftChange}
+                    ></lightning-input>
+                    <lightning-input
                         type="checkbox"
                         name="active"
                         label="Active profile"
@@ -147,6 +159,13 @@
                         name="activeForAgentforce"
                         label="Active for Agentforce"
                         checked={profileDraft.activeForAgentforce}
+                        onchange={handleProfileDraftChange}
+                    ></lightning-input>
+                    <lightning-input
+                        type="checkbox"
+                        name="employeeDefault"
+                        label="Employee default"
+                        checked={profileDraft.employeeDefault}
                         onchange={handleProfileDraftChange}
                     ></lightning-input>
                     <lightning-input
@@ -194,6 +213,12 @@
                     <span class="signal-label">Last sync</span>
                     <strong>{lastSyncLabel}</strong>
                 </article>
+                <template if:true={hasConnectedIdentity}>
+                    <article class="signal-card signal-card_wide">
+                        <span class="signal-label">Connected Jira user</span>
+                        <strong>{connectedIdentityLabel}</strong>
+                    </article>
+                </template>
             </section>
 
             <template if:true={hasHealthMessages}>

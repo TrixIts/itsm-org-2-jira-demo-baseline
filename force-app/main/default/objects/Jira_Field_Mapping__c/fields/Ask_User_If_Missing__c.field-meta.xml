@@ -5,5 +5,6 @@
     <description>Whether Agentforce should ask the employee for this value when it is required but missing.</description>
     <label>Ask User If Missing</label>
     <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
     <type>Checkbox</type>
 </CustomField>

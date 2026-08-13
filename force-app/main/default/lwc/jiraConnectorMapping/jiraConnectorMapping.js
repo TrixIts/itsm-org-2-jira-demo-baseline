@@ -1,4 +1,5 @@
 import { LightningElement, track } from 'lwc';
+import getJiraConnectionInfo from '@salesforce/apex/JiraConnectorMappingController.getJiraConnectionInfo';
 import getJiraIssueTypes from '@salesforce/apex/JiraConnectorMappingController.getJiraIssueTypes';
 import getJiraProjects from '@salesforce/apex/JiraConnectorMappingController.getJiraProjects';
 import getSalesforceFields from '@salesforce/apex/JiraConnectorMappingController.getSalesforceFields';
@@ -37,6 +38,7 @@ export default class JiraConnectorMapping extends LightningElement {
     @track issueTypeOptions = [];
     @track salesforceObjectOptions = [];
     @track sourceFieldOptions = [];
+    @track connectionInfo = {};
 
     errorMessage = '';
     fieldSearch = '';
@@ -155,7 +157,11 @@ export default class JiraConnectorMapping extends LightningElement {
             issueTypeName: '',
             browseBaseUrl: current.browseBaseUrl || '',
             openIssueJqlClause: current.openIssueJqlClause || 'statusCategory != Done ORDER BY updated DESC',
-            active: true
+            active: true,
+            activeForAgentforce: true,
+            employeeDefault: this.profileOptions.length === 0,
+            sharedReporterAccountId: '',
+            sharedReporterDisplayName: ''
         };
     }
 
@@ -206,9 +212,17 @@ export default class JiraConnectorMapping extends LightningElement {
         this.isLoading = true;
         this.errorMessage = '';
         try {
-            this.projectOptions = await getJiraProjects({
-                namedCredentialApiName: this.profileDraft.namedCredentialApiName
-            });
+            const namedCredentialApiName = this.profileDraft.namedCredentialApiName;
+            [this.connectionInfo, this.projectOptions] = await Promise.all([
+                getJiraConnectionInfo({ namedCredentialApiName }),
+                getJiraProjects({ namedCredentialApiName })
+            ]);
+            if (!this.profileDraft.browseBaseUrl && this.connectionInfo?.baseUrl) {
+                this.profileDraft = {
+                    ...this.profileDraft,
+                    browseBaseUrl: this.connectionInfo.baseUrl
+                };
+            }
         } catch (error) {
             this.errorMessage = this.reduceError(error);
         } finally {
@@ -362,7 +376,10 @@ export default class JiraConnectorMapping extends LightningElement {
             salesforceObjectApiName: profile.salesforceObjectApiName || '',
             salesforceObjectLabel: profile.salesforceObjectLabel || '',
             routeKey: profile.routeKey || '',
-            activeForAgentforce: profile.activeForAgentforce === true
+            activeForAgentforce: profile.activeForAgentforce === true,
+            employeeDefault: profile.employeeDefault === true,
+            sharedReporterAccountId: profile.sharedReporterAccountId || '',
+            sharedReporterDisplayName: profile.sharedReporterDisplayName || ''
         };
     }
 
@@ -399,6 +416,17 @@ export default class JiraConnectorMapping extends LightningElement {
 
     get hasIssueTypeOptions() {
         return this.issueTypeOptions.length > 0;
+    }
+
+    get connectedIdentityLabel() {
+        if (!this.connectionInfo?.displayName) {
+            return '';
+        }
+        return this.connectionInfo.displayName;
+    }
+
+    get hasConnectedIdentity() {
+        return Boolean(this.connectedIdentityLabel);
     }
 
     get connectorSubtitle() {

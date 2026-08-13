@@ -46,6 +46,21 @@ public with sharing class JiraCreateIssueAction {
 
         @InvocableVariable(label='Jira Issue Url')
         public String jiraIssueUrl;
+
+        @InvocableVariable(label='Correlation Id')
+        public String correlationId;
+
+        @InvocableVariable(label='Is Duplicate')
+        public Boolean isDuplicate;
+
+        @InvocableVariable(label='Error Type')
+        public String errorType;
+
+        @InvocableVariable(label='HTTP Status Code')
+        public Integer statusCode;
+
+        @InvocableVariable(label='Is Retryable')
+        public Boolean isRetryable;
     }
 
     @InvocableMethod(
@@ -56,7 +71,37 @@ public with sharing class JiraCreateIssueAction {
         List<Response> responses = new List<Response>();
         for (Request requestItem : requests) {
             Response responseItem = new Response();
+            Long startedAt = Datetime.now().getTime();
+            String correlationId;
             try {
+                JiraDirectActionSupport.requirePermission(JiraDirectActionSupport.PERMISSION_CREATE);
+                JiraDirectActionSupport.validateCreateInputs(
+                    requestItem.jiraSummary,
+                    requestItem.jiraDescription,
+                    requestItem.jiraPriority,
+                    requestItem.requesterEmail,
+                    requestItem.channel,
+                    requestItem.sourceReference
+                );
+                correlationId = JiraDirectActionSupport.buildCreateCorrelationKey(
+                    requestItem.sourceReference,
+                    requestItem.jiraSummary,
+                    requestItem.jiraDescription,
+                    requestItem.requesterEmail
+                );
+                responseItem.correlationId = correlationId;
+                Jira_Integration_Transaction__c existingTransaction =
+                    JiraDirectActionSupport.findSuccessfulTransaction(correlationId);
+                if (existingTransaction != null) {
+                    responseItem.isSuccess = true;
+                    responseItem.isDuplicate = true;
+                    responseItem.jiraIssueKey = existingTransaction.Jira_Issue_Key__c;
+                    responseItem.jiraIssueUrl = JiraIntegrationSupport.buildIssueUrl(responseItem.jiraIssueKey);
+                    responseItem.message = 'This request was already submitted as Jira issue ' +
+                        responseItem.jiraIssueKey + '.';
+                    responses.add(responseItem);
+                    continue;
+                }
                 Map<String, Object> createResult = JiraIntegrationSupport.createIssue(
                     requestItem.jiraSummary,
                     requestItem.jiraDescription,
@@ -71,18 +116,42 @@ public with sharing class JiraCreateIssueAction {
                 );
 
                 responseItem.isSuccess = true;
+                responseItem.isDuplicate = false;
                 responseItem.jiraIssueKey = JiraIntegrationSupport.stringValue(createResult.get('key'));
                 responseItem.jiraIssueId = JiraIntegrationSupport.stringValue(createResult.get('id'));
                 responseItem.jiraIssueUrl = JiraIntegrationSupport.buildIssueUrl(responseItem.jiraIssueKey);
                 responseItem.message = String.isBlank(responseItem.jiraIssueKey)
                     ? 'Jira issue created successfully.'
                     : 'Jira issue ' + responseItem.jiraIssueKey + ' created successfully.';
+                JiraDirectActionSupport.recordTransaction(
+                    correlationId,
+                    'Create',
+                    responseItem.jiraIssueKey,
+                    'Success',
+                    startedAt,
+                    null
+                );
             } catch (Exception ex) {
+                JiraDirectActionSupport.ErrorInfo errorInfo = JiraDirectActionSupport.toErrorInfo(ex);
                 responseItem.isSuccess = false;
-                responseItem.message = 'Jira issue creation failed: ' + ex.getMessage();
+                responseItem.isDuplicate = false;
+                responseItem.errorType = errorInfo.errorType;
+                responseItem.statusCode = errorInfo.statusCode;
+                responseItem.isRetryable = errorInfo.isRetryable;
+                responseItem.message = 'Jira issue creation failed: ' + errorInfo.safeMessage;
                 responseItem.jiraIssueKey = '';
                 responseItem.jiraIssueId = '';
                 responseItem.jiraIssueUrl = '';
+                JiraDirectActionSupport.recordTransaction(
+                    String.isBlank(correlationId)
+                        ? JiraDirectActionSupport.newAuditCorrelation('Create', null)
+                        : correlationId,
+                    'Create',
+                    null,
+                    'Failure',
+                    startedAt,
+                    errorInfo
+                );
             }
             responses.add(responseItem);
         }

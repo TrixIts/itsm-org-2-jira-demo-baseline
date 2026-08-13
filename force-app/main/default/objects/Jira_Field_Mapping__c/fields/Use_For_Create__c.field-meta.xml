@@ -5,5 +5,6 @@
     <description>Whether this mapped field can be sent when Agentforce creates Jira issues.</description>
     <label>Use For Create</label>
     <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
     <type>Checkbox</type>
 </CustomField>

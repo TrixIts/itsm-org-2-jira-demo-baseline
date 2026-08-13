@@ -36,6 +36,22 @@ private class JiraConnectorMappingControllerTest {
         }
     }
 
+    private class ConnectionInfoMock implements HttpCalloutMock {
+        public HttpResponse respond(HttpRequest request) {
+            HttpResponse response = new HttpResponse();
+            response.setStatusCode(200);
+            if (request.getEndpoint().contains('/rest/api/3/serverInfo')) {
+                response.setBody('{"baseUrl":"https://example.atlassian.net"}');
+            } else if (request.getEndpoint().contains('/rest/api/3/myself')) {
+                response.setBody('{"accountId":"account-portable","displayName":"Portable Jira User"}');
+            } else {
+                response.setStatusCode(400);
+                response.setBody('{"errorMessages":["Unexpected mock request"]}');
+            }
+            return response;
+        }
+    }
+
     private static void applyConfigOverride() {
         JiraIntegrationSupport.JiraConfiguration config = new JiraIntegrationSupport.JiraConfiguration();
         config.namedCredentialApiName = 'Jira_Named_Credential';
@@ -60,7 +76,9 @@ private class JiraConnectorMappingControllerTest {
             Issue_Type_Name__c = 'Incident',
             Browse_Base_Url__c = 'https://example.atlassian.net',
             Open_Issue_Jql_Clause__c = 'statusCategory != Done ORDER BY updated DESC',
-            Active__c = true
+            Active__c = true,
+            Is_Active_For_Agentforce__c = true,
+            Employee_Default__c = true
         );
         insert new Jira_Connector_Field__c(
             Unique_Key__c = 'DefaultJira|summary',
@@ -118,6 +136,20 @@ private class JiraConnectorMappingControllerTest {
         System.assertEquals(2, options.size());
         System.assertEquals('Incident', options[0].label);
         System.assertEquals('10001', options[0].value);
+    }
+
+    @IsTest
+    static void getJiraConnectionInfo_returnsConnectedSiteAndPrincipal() {
+        Test.setMock(HttpCalloutMock.class, new ConnectionInfoMock());
+
+        Test.startTest();
+        JiraConnectorMappingController.ConnectionInfoDTO result =
+            JiraConnectorMappingController.getJiraConnectionInfo('Jira_Named_Credential');
+        Test.stopTest();
+
+        System.assertEquals('https://example.atlassian.net', result.baseUrl);
+        System.assertEquals('account-portable', result.accountId);
+        System.assertEquals('Portable Jira User', result.displayName);
     }
 
     @IsTest
@@ -179,5 +211,28 @@ private class JiraConnectorMappingControllerTest {
             AND Project_Id__c = '20001'
         ]);
         System.assert(workspace.profiles.size() >= 2);
+    }
+
+    @IsTest
+    static void saveProfile_rejectsSecondEmployeeDefault() {
+        JiraConnectorMappingController.ProfileInputDTO input = new JiraConnectorMappingController.ProfileInputDTO();
+        input.name = 'Second Employee Profile';
+        input.namedCredentialApiName = 'Jira_Named_Credential';
+        input.projectId = '30001';
+        input.projectKey = 'HELP';
+        input.projectName = 'Employee Help';
+        input.issueTypeId = '30002';
+        input.issueTypeName = 'Request';
+        input.active = true;
+        input.activeForAgentforce = true;
+        input.employeeDefault = true;
+
+        Boolean rejected = false;
+        try {
+            JiraConnectorMappingController.saveProfile(input);
+        } catch (AuraHandledException ex) {
+            rejected = true;
+        }
+        Assert.isTrue(rejected, 'A second employee-default profile should be rejected.');
     }
 }
